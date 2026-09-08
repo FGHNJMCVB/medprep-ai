@@ -1,23 +1,24 @@
 package com.medprep.controller;
 
-import com.medprep.service.TopicQuestionBankService;
+import com.medprep.service.QuestionBankGenerationService;
 
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/question-bank")
 public class QuestionBankAdminController {
 
-    private final TopicQuestionBankService
-            topicQuestionBankService;
+    private final QuestionBankGenerationService
+            questionBankGenerationService;
 
     public QuestionBankAdminController(
-            TopicQuestionBankService topicQuestionBankService) {
+            QuestionBankGenerationService questionBankGenerationService) {
 
-        this.topicQuestionBankService =
-                topicQuestionBankService;
+        this.questionBankGenerationService =
+                questionBankGenerationService;
     }
 
     // ==========================================================
@@ -25,37 +26,11 @@ public class QuestionBankAdminController {
     // ==========================================================
 
     @GetMapping("/status")
-    public List<TopicQuestionBankService.TopicStatus>
-    getAllTopicStatus(
-            @RequestParam(
-                    name = "target",
-                    defaultValue = "20"
-            )
-            int target) {
+    public List<Map<String, Object>>
+    getAllTopicStatus() {
 
-        return topicQuestionBankService
-                .getAllTopicStatus(target);
-    }
-
-    // ==========================================================
-    // GET SINGLE TOPIC STATUS
-    // ==========================================================
-
-    @GetMapping("/status/topic/{topicId}")
-    public TopicQuestionBankService.TopicStatus
-    getTopicStatus(
-            @PathVariable Long topicId,
-            @RequestParam(
-                    name = "target",
-                    defaultValue = "20"
-            )
-            int target) {
-
-        return topicQuestionBankService
-                .getTopicStatus(
-                        topicId,
-                        target
-                );
+        return questionBankGenerationService
+                .getAllTopicProgress();
     }
 
     // ==========================================================
@@ -63,36 +38,28 @@ public class QuestionBankAdminController {
     // ==========================================================
 
     @PostMapping("/fill/topic/{topicId}")
-    public TopicQuestionBankService.TopicFillResult
+    public Map<String, Object>
     fillTopic(
-            @PathVariable Long topicId,
-            @RequestParam(
-                    name = "target",
-                    defaultValue = "20"
-            )
-            int target) {
+            @PathVariable Long topicId) {
 
-        return topicQuestionBankService
-                .fillTopic(
-                        topicId,
-                        target
-                );
+        return questionBankGenerationService
+                .generateMissingForTopic(topicId);
     }
 
     // ==========================================================
-    // FILL ALL TOPICS
+    // FILL MULTIPLE TOPICS
     // ==========================================================
 
     @PostMapping("/fill/all")
-    public List<TopicQuestionBankService.TopicFillResult>
+    public Map<String, Object>
     fillAllTopics(
             @RequestParam(
-                    name = "target",
-                    defaultValue = "20"
+                    name = "maxTopics",
+                    defaultValue = "1"
             )
-            int target) {
+            int maxTopics) {
 
-        return topicQuestionBankService
-                .fillAllTopics(target);
+        return questionBankGenerationService
+                .generateMissingForTopics(maxTopics);
     }
 }

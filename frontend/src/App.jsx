@@ -24,6 +24,15 @@ import {
 function App() {
   const MOCK_STORAGE_KEY = "medprep_active_mock";
 
+  const PRACTICE_QUESTION_COUNTS = [
+    10,
+    20,
+    30,
+    50,
+    100,
+    150
+  ];
+
   // ==========================================================
   // AUTH
   // ==========================================================
@@ -203,6 +212,10 @@ function App() {
     practiceReview,
     setPracticeReview
   ] = useState(null);
+
+  // Number of questions selected for the next practice session.
+  const [practiceQuestionCount, setPracticeQuestionCount] =
+    useState(10);
 
   // ==========================================================
   // RESULT / HISTORY
@@ -655,6 +668,7 @@ function App() {
 
     setPracticeCurrentIndex(0);
     setPracticeSelectedOptionId(null);
+    setPracticeQuestionCount(10);
 
     setEmail("");
     setPassword("");
@@ -726,7 +740,7 @@ function App() {
       const practice =
         await startPractice({
           topicId: topic.id,
-          numberOfQuestions: 5
+          numberOfQuestions: practiceQuestionCount
         });
 
       if (
@@ -1832,7 +1846,57 @@ function App() {
                 </p>
               </div>
             ) : (
-              <div className="topic-list">
+              <>
+                <div
+                  className="empty-card"
+                  style={{
+                    marginBottom: "16px"
+                  }}
+                >
+                  <strong>
+                    Practice settings
+                  </strong>
+
+                  <p>
+                    Choose how many questions you want
+                    in this practice session.
+                  </p>
+
+                  <label
+                    htmlFor="practice-question-count"
+                  >
+                    Number of questions
+                  </label>
+
+                  <select
+                    id="practice-question-count"
+                    value={practiceQuestionCount}
+                    onChange={event =>
+                      setPracticeQuestionCount(
+                        Number(event.target.value)
+                      )
+                    }
+                    disabled={loading}
+                    style={{
+                      display: "block",
+                      marginTop: "8px",
+                      minWidth: "180px"
+                    }}
+                  >
+                    {PRACTICE_QUESTION_COUNTS.map(
+                      count => (
+                        <option
+                          key={count}
+                          value={count}
+                        >
+                          {count} Questions
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+
+                <div className="topic-list">
                 {topics.map(
                   topic => (
                     <div
@@ -1868,7 +1932,8 @@ function App() {
                     </div>
                   )
                 )}
-              </div>
+                </div>
+              </>
             )}
           </section>
         </main>

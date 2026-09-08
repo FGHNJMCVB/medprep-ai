@@ -114,6 +114,16 @@
     <artifactId>jackson-databind</artifactId>
 </dependency>
 
+<!-- ====================================================== -->
+<!-- Google Gemini / GenAI SDK                              -->
+<!-- ====================================================== -->
+
+<dependency>
+    <groupId>com.google.genai</groupId>
+    <artifactId>google-genai</artifactId>
+    <version>1.70.0</version>
+</dependency>
+
     </dependencies>
 
     <build>

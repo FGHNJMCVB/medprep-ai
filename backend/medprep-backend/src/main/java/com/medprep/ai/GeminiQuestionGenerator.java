@@ -10,8 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 @Component
 @Primary
@@ -25,6 +27,13 @@ public class GeminiQuestionGenerator
     private final String apiKey;
 
     private final String model;
+
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+
+    private static final long INITIAL_RETRY_DELAY_MS = 2000;
+
+    private static final Duration GEMINI_REQUEST_TIMEOUT =
+            Duration.ofSeconds(90);
 
     public GeminiQuestionGenerator(
             Environment environment) {
@@ -48,6 +57,10 @@ public class GeminiQuestionGenerator
                 .build();
     }
 
+    // ==========================================================
+    // GENERATE QUESTIONS (WITH RETRY)
+    // ==========================================================
+
     @Override
     public String generateQuestions(
             QuestionGenerationRequest request,
@@ -58,15 +71,78 @@ public class GeminiQuestionGenerator
             throw new IllegalStateException(
                     "Gemini API key is not configured. "
                             + "Set GEMINI_API_KEY before using "
-                            + "AI question generation."
-            );
+                            + "AI question generation.");
         }
 
-        String prompt =
-                buildPrompt(
-                        request,
-                        promptContext
-                );
+        String prompt = buildPrompt(
+                request,
+                promptContext);
+
+        Map<String, Object> requestBody =
+                buildRequestBody(prompt);
+
+        long retryDelayMs =
+                INITIAL_RETRY_DELAY_MS;
+
+        for (int attempt = 1;
+             attempt <= MAX_RETRY_ATTEMPTS;
+             attempt++) {
+
+            try {
+
+                String response =
+                        callGemini(requestBody);
+
+                return extractGeneratedText(
+                        response);
+
+            } catch (Exception exception) {
+
+                boolean retryable =
+                        isRetryableGeminiError(
+                                exception);
+
+                if (!retryable ||
+                        attempt >= MAX_RETRY_ATTEMPTS) {
+
+                    throw new IllegalStateException(
+                            "Gemini question generation failed "
+                                    + "after "
+                                    + attempt
+                                    + " attempt(s): "
+                                    + getErrorMessage(exception),
+                            exception);
+                }
+
+                try {
+
+                    Thread.sleep(
+                            retryDelayMs);
+
+                } catch (InterruptedException interruptedException) {
+
+                    Thread.currentThread()
+                            .interrupt();
+
+                    throw new IllegalStateException(
+                            "Gemini retry was interrupted",
+                            interruptedException);
+                }
+
+                retryDelayMs *= 2;
+            }
+        }
+
+        throw new IllegalStateException(
+                "Gemini question generation failed unexpectedly.");
+    }
+
+    // ==========================================================
+    // BUILD REQUEST BODY
+    // ==========================================================
+
+    private Map<String, Object> buildRequestBody(
+            String prompt) {
 
         Map<String, Object> requestBody =
                 new HashMap<>();
@@ -80,25 +156,22 @@ public class GeminiQuestionGenerator
 
         textPart.put(
                 "text",
-                prompt
-        );
+                prompt);
 
         Map<String, Object> content =
                 new HashMap<>();
 
         content.put(
                 "parts",
-                new Object[]{
+                new Object[] {
                         textPart
-                }
-        );
+                });
 
         requestBody.put(
                 "contents",
-                new Object[]{
+                new Object[] {
                         content
-                }
-        );
+                });
 
         // ------------------------------------------------------
         // generationConfig
@@ -109,18 +182,25 @@ public class GeminiQuestionGenerator
 
         generationConfig.put(
                 "response_mime_type",
-                "application/json"
-        );
+                "application/json");
 
         generationConfig.put(
                 "response_schema",
-                buildQuestionSchema()
-        );
+                buildQuestionSchema());
 
         requestBody.put(
                 "generationConfig",
-                generationConfig
-        );
+                generationConfig);
+
+        return requestBody;
+    }
+
+    // ==========================================================
+    // CALL GEMINI (WITH TIMEOUT)
+    // ==========================================================
+
+    private String callGemini(
+            Map<String, Object> requestBody) {
 
         String response =
                 webClient
@@ -129,52 +209,116 @@ public class GeminiQuestionGenerator
                                 .path(
                                         "/models/"
                                                 + model
-                                                + ":generateContent"
-                                )
+                                                + ":generateContent")
                                 .queryParam(
                                         "key",
-                                        apiKey
-                                )
-                                .build()
-                        )
+                                        apiKey)
+                                .build())
                         .contentType(
-                                MediaType.APPLICATION_JSON
-                        )
-                        .bodyValue(requestBody)
+                                MediaType.APPLICATION_JSON)
+                        .bodyValue(
+                                requestBody)
                         .exchangeToMono(
                                 clientResponse ->
                                         clientResponse
                                                 .bodyToMono(
-                                                        String.class
-                                                )
-                                                .flatMap(
-                                                        body -> {
+                                                        String.class)
+                                                .flatMap(body -> {
 
-                                                            if (clientResponse
-                                                                    .statusCode()
-                                                                    .isError()) {
+                                                    if (clientResponse
+                                                            .statusCode()
+                                                            .isError()) {
 
-                                                                return reactor.core.publisher.Mono
-                                                                        .error(
-                                                                                new IllegalStateException(
-                                                                                        "Gemini API returned "
-                                                                                                + clientResponse.statusCode()
-                                                                                                + ": "
-                                                                                                + body
-                                                                                )
-                                                                        );
-                                                            }
+                                                        return reactor.core.publisher.Mono
+                                                                .error(
+                                                                        new IllegalStateException(
+                                                                                "Gemini API returned "
+                                                                                        + clientResponse
+                                                                                                .statusCode()
+                                                                                        + ": "
+                                                                                        + body));
+                                                    }
 
-                                                            return reactor.core.publisher.Mono
-                                                                    .just(body);
-                                                        }
-                                                )
-                        )
-                        .block();
+                                                    return reactor.core.publisher.Mono
+                                                            .just(body);
+                                                }))
+                        .block(
+                                GEMINI_REQUEST_TIMEOUT);
 
-        return extractGeneratedText(
-                response
-        );
+        if (response == null ||
+                response.trim().isEmpty()) {
+
+            throw new IllegalStateException(
+                    "Gemini API returned an empty response");
+        }
+
+        return response;
+    }
+
+    // ==========================================================
+    // RETRY DETECTION
+    // ==========================================================
+
+    private boolean isRetryableGeminiError(
+            Exception exception) {
+
+        Throwable current =
+                exception;
+
+        while (current != null) {
+
+            if (current instanceof TimeoutException) {
+                return true;
+            }
+
+            String message =
+                    current.getMessage();
+
+            if (message != null) {
+
+                String normalized =
+                        message.toUpperCase();
+
+                if (normalized.contains("503")
+                        || normalized.contains("SERVICE_UNAVAILABLE")
+                        || normalized.contains("429")
+                        || normalized.contains("RESOURCE_EXHAUSTED")
+                        || normalized.contains("500")
+                        || normalized.contains("502")
+                        || normalized.contains("504")
+                        || normalized.contains("TIMEOUT")
+                        || normalized.contains("TIMED OUT")) {
+
+                    return true;
+                }
+            }
+
+            current =
+                    current.getCause();
+        }
+
+        return false;
+    }
+
+    // ==========================================================
+    // ERROR MESSAGE FALLBACK
+    // ==========================================================
+
+    private String getErrorMessage(
+            Exception exception) {
+
+        String message =
+                exception.getMessage();
+
+        if (message == null ||
+                message.trim().isEmpty()) {
+
+            return exception
+                    .getClass()
+                    .getSimpleName();
+        }
+
+        return message;
     }
 
     // ==========================================================

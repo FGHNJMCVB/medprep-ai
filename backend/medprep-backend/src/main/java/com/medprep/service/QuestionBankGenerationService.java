@@ -27,13 +27,13 @@ public class QuestionBankGenerationService {
     // QUESTION BANK TARGET
     // ==========================================================
 
-    private static final int TARGET_PER_TOPIC = 20;
+    private static final int TARGET_PER_TOPIC = 150;
 
-    private static final int EASY_TARGET = 5;
+    private static final int EASY_TARGET = 30;
 
-    private static final int MEDIUM_TARGET = 10;
+    private static final int MEDIUM_TARGET = 90;
 
-    private static final int HARD_TARGET = 5;
+    private static final int HARD_TARGET = 30;
 
     /*
      * Never ask Gemini for more than 10 questions
