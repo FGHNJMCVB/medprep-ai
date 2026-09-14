@@ -23,6 +23,7 @@ import {
 
 function App() {
   const MOCK_STORAGE_KEY = "medprep_active_mock";
+  const PRACTICE_STORAGE_KEY = "medprep_active_practice";
 
   const PRACTICE_QUESTION_COUNTS = [
     10,
@@ -41,12 +42,28 @@ function App() {
     () => localStorage.getItem("studentToken")
   );
 
-  const [screen, setScreen] = useState(
-    () =>
-      localStorage.getItem("studentToken")
-        ? "dashboard"
-        : "login"
-  );
+  const [screen, setScreen] = useState(() => {
+    if (!localStorage.getItem("studentToken")) {
+      return "login";
+    }
+
+    try {
+      const savedPractice = JSON.parse(
+        localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+      );
+
+      if (
+        savedPractice?.practiceSession &&
+        savedPractice.practiceSession.status !== "COMPLETED"
+      ) {
+        return "practice";
+      }
+    } catch {
+      // Ignore invalid browser storage and open the dashboard.
+    }
+
+    return "dashboard";
+  });
 
   const [authMode, setAuthMode] = useState("login");
 
@@ -186,17 +203,105 @@ function App() {
   // ==========================================================
 
   const [practiceSession, setPracticeSession] =
-    useState(null);
+    useState(() => {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+        );
+        return saved?.practiceSession || null;
+      } catch {
+        return null;
+      }
+    });
 
   const [
     practiceCurrentIndex,
     setPracticeCurrentIndex
-  ] = useState(0);
+  ] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+      );
+      return Number(saved?.practiceCurrentIndex) || 0;
+    } catch {
+      return 0;
+    }
+  });
 
   const [
     practiceSelectedOptionId,
     setPracticeSelectedOptionId
-  ] = useState(null);
+  ] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+      );
+      const question =
+        saved?.practiceSession?.questions?.[
+          Number(saved?.practiceCurrentIndex) || 0
+        ];
+
+      return question
+        ? saved?.practiceAnswers?.[question.sessionQuestionId] ?? null
+        : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Editable draft answers. Answers are sent to the backend only when
+  // the student finishes the practice session.
+  const [practiceAnswers, setPracticeAnswers] =
+    useState(() => {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+        );
+        return saved?.practiceAnswers &&
+          typeof saved.practiceAnswers === "object"
+          ? saved.practiceAnswers
+          : {};
+      } catch {
+        return {};
+      }
+    });
+
+  // Keeps a retry safe if final submission stops after only some answers
+  // reached the backend.
+  const [submittedPracticeQuestionIds, setSubmittedPracticeQuestionIds] =
+    useState(() => {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+        );
+        return new Set(
+          Array.isArray(saved?.submittedPracticeQuestionIds)
+            ? saved.submittedPracticeQuestionIds
+            : []
+        );
+      } catch {
+        return new Set();
+      }
+    });
+
+  // Accumulated time per question, keyed by sessionQuestionId.
+  const [practiceTimeByQuestion, setPracticeTimeByQuestion] =
+    useState(() => {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(PRACTICE_STORAGE_KEY) || "null"
+        );
+        return saved?.practiceTimeByQuestion &&
+          typeof saved.practiceTimeByQuestion === "object"
+          ? saved.practiceTimeByQuestion
+          : {};
+      } catch {
+        return {};
+      }
+    });
+
+  const [practicePaletteOpen, setPracticePaletteOpen] =
+    useState(false);
 
   const [
     practiceAnswerStartTime,
@@ -274,6 +379,46 @@ function App() {
     mockRemainingSeconds,
     mockPart,
     showPartTransition
+  ]);
+
+  // ==========================================================
+  // PERSIST ACTIVE PRACTICE
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      !practiceSession ||
+      practiceSession.status === "COMPLETED"
+    ) {
+      localStorage.removeItem(PRACTICE_STORAGE_KEY);
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        PRACTICE_STORAGE_KEY,
+        JSON.stringify({
+          practiceSession,
+          practiceCurrentIndex,
+          practiceAnswers,
+          submittedPracticeQuestionIds:
+            Array.from(submittedPracticeQuestionIds),
+          practiceTimeByQuestion,
+          savedAt: Date.now()
+        })
+      );
+    } catch (storageError) {
+      console.warn(
+        "Unable to persist active practice session:",
+        storageError
+      );
+    }
+  }, [
+    practiceSession,
+    practiceCurrentIndex,
+    practiceAnswers,
+    submittedPracticeQuestionIds,
+    practiceTimeByQuestion
   ]);
 
   // ==========================================================
@@ -639,6 +784,7 @@ function App() {
       "studentToken"
     );
     localStorage.removeItem(MOCK_STORAGE_KEY);
+    localStorage.removeItem(PRACTICE_STORAGE_KEY);
 
     setToken(null);
 
@@ -668,6 +814,10 @@ function App() {
 
     setPracticeCurrentIndex(0);
     setPracticeSelectedOptionId(null);
+    setPracticeAnswers({});
+    setSubmittedPracticeQuestionIds(new Set());
+    setPracticeTimeByQuestion({});
+    setPracticePaletteOpen(false);
     setPracticeQuestionCount(10);
 
     setEmail("");
@@ -755,13 +905,26 @@ function App() {
         );
       }
 
-      setPracticeSession(practice);
+      setPracticeSession({
+        ...practice,
+        subjectName:
+          selectedSubject?.name || "Practice",
+        topicName:
+          topic?.name || "Selected topic"
+      });
 
       setPracticeCurrentIndex(0);
 
       setPracticeSelectedOptionId(
         null
       );
+
+      setPracticeAnswers({});
+      setSubmittedPracticeQuestionIds(
+        new Set()
+      );
+      setPracticeTimeByQuestion({});
+      setPracticePaletteOpen(false);
 
       setPracticeAnswerStartTime(
         Date.now()
@@ -790,11 +953,176 @@ function App() {
   function handlePracticeOptionSelect(
     optionId
   ) {
+    const currentQuestion =
+      practiceSession?.questions?.[
+        practiceCurrentIndex
+      ];
+
+    if (!currentQuestion) {
+      return;
+    }
+
+    if (
+      submittedPracticeQuestionIds.has(
+        currentQuestion.sessionQuestionId
+      )
+    ) {
+      setError(
+        "This answer was already saved while finishing the session."
+      );
+      return;
+    }
+
     setPracticeSelectedOptionId(
       optionId
     );
 
+    setPracticeAnswers(previous => ({
+      ...previous,
+      [currentQuestion.sessionQuestionId]:
+        optionId
+    }));
+
     setError("");
+  }
+
+  // ==========================================================
+  // PRACTICE CLEAR ANSWER
+  // ==========================================================
+
+  function handlePracticeClearAnswer() {
+    const currentQuestion =
+      practiceSession?.questions?.[
+        practiceCurrentIndex
+      ];
+
+    if (!currentQuestion) {
+      return;
+    }
+
+    if (
+      submittedPracticeQuestionIds.has(
+        currentQuestion.sessionQuestionId
+      )
+    ) {
+      setError(
+        "This answer was already saved while finishing the session."
+      );
+      return;
+    }
+
+    setPracticeAnswers(previous => {
+      const updated = { ...previous };
+      delete updated[
+        currentQuestion.sessionQuestionId
+      ];
+      return updated;
+    });
+
+    setPracticeSelectedOptionId(null);
+    setError("");
+  }
+
+  // ==========================================================
+  // PRACTICE NAVIGATION
+  // ==========================================================
+
+  function captureCurrentPracticeTime() {
+    const currentQuestion =
+      practiceSession?.questions?.[
+        practiceCurrentIndex
+      ];
+
+    const now = Date.now();
+
+    if (!currentQuestion) {
+      setPracticeAnswerStartTime(now);
+      return { ...practiceTimeByQuestion };
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      Math.floor(
+        (now - practiceAnswerStartTime) /
+          1000
+      )
+    );
+
+    const questionId =
+      currentQuestion.sessionQuestionId;
+
+    const updatedTimes = {
+      ...practiceTimeByQuestion,
+      [questionId]:
+        Number(
+          practiceTimeByQuestion[
+            questionId
+          ] || 0
+        ) + elapsedSeconds
+    };
+
+    setPracticeTimeByQuestion(
+      updatedTimes
+    );
+    setPracticeAnswerStartTime(now);
+
+    return updatedTimes;
+  }
+
+  function navigateToPracticeQuestion(
+    requestedIndex
+  ) {
+    const questions =
+      practiceSession?.questions;
+
+    if (
+      !Array.isArray(questions) ||
+      questions.length === 0
+    ) {
+      return;
+    }
+
+    const nextIndex = Math.min(
+      questions.length - 1,
+      Math.max(0, requestedIndex)
+    );
+
+    captureCurrentPracticeTime();
+
+    const nextQuestion =
+      questions[nextIndex];
+
+    setPracticeCurrentIndex(nextIndex);
+    setPracticeSelectedOptionId(
+      practiceAnswers[
+        nextQuestion.sessionQuestionId
+      ] ?? null
+    );
+    setPracticeAnswerStartTime(
+      Date.now()
+    );
+    setPracticePaletteOpen(false);
+    setError("");
+  }
+
+  function handlePracticePrevious() {
+    navigateToPracticeQuestion(
+      practiceCurrentIndex - 1
+    );
+  }
+
+  function handlePracticeNext() {
+    navigateToPracticeQuestion(
+      practiceCurrentIndex + 1
+    );
+  }
+
+  function handlePracticeQuestionSelect(
+    questionIndex
+  ) {
+    navigateToPracticeQuestion(
+      questionIndex
+    );
   }
 
   // ==========================================================
@@ -802,17 +1130,126 @@ function App() {
   // ==========================================================
 
   async function finishPracticeSession() {
-    if (!practiceSession) {
+    const questions =
+      practiceSession?.questions;
+
+    if (
+      !practiceSession ||
+      !Array.isArray(questions)
+    ) {
       return;
     }
+
+    const answeredCount =
+      questions.filter(question =>
+        practiceAnswers[
+          question.sessionQuestionId
+        ] !== undefined &&
+        practiceAnswers[
+          question.sessionQuestionId
+        ] !== null
+      ).length;
+
+    const unansweredCount =
+      questions.length - answeredCount;
+
+    const confirmationMessage =
+      unansweredCount > 0
+        ? `You answered ${answeredCount} of ${questions.length} questions. Finish with ${unansweredCount} unanswered?`
+        : `Submit all ${questions.length} answers and finish practice?`;
+
+    if (!window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    const finalTimes =
+      captureCurrentPracticeTime();
 
     setLoading(true);
     setError("");
 
     try {
-      await finishPractice(
-        practiceSession.sessionId
+      const submittedIds = new Set(
+        submittedPracticeQuestionIds
       );
+
+      for (const question of questions) {
+        const sessionQuestionId =
+          question.sessionQuestionId;
+
+        const selectedOption =
+          practiceAnswers[
+            sessionQuestionId
+          ];
+
+        if (
+          selectedOption === undefined ||
+          selectedOption === null ||
+          submittedIds.has(
+            sessionQuestionId
+          )
+        ) {
+          continue;
+        }
+
+        const answer =
+          await submitPracticeAnswer(
+            practiceSession.sessionId,
+            sessionQuestionId,
+            selectedOption,
+            Number(
+              finalTimes[
+                sessionQuestionId
+              ] || 0
+            )
+          );
+
+        submittedIds.add(
+          sessionQuestionId
+        );
+
+        setSubmittedPracticeQuestionIds(
+          new Set(submittedIds)
+        );
+
+        // Persist immediately after every successful request so a later
+        // network failure can safely resume without submitting duplicates.
+        try {
+          localStorage.setItem(
+            PRACTICE_STORAGE_KEY,
+            JSON.stringify({
+              practiceSession,
+              practiceCurrentIndex,
+              practiceAnswers,
+              submittedPracticeQuestionIds:
+                Array.from(submittedIds),
+              practiceTimeByQuestion:
+                finalTimes,
+              savedAt: Date.now()
+            })
+          );
+        } catch (storageError) {
+          console.warn(
+            "Unable to save practice submission progress:",
+            storageError
+          );
+        }
+
+        setPracticeSession(previous => ({
+          ...previous,
+          answeredQuestions:
+            answer?.answeredQuestions ??
+            previous.answeredQuestions,
+          correctAnswers:
+            answer?.correctAnswers ??
+            previous.correctAnswers
+        }));
+      }
+
+      const completedSession =
+        await finishPractice(
+          practiceSession.sessionId
+        );
 
       const finalResult =
         await getPracticeResult(
@@ -821,6 +1258,17 @@ function App() {
 
       setPracticeResult(
         finalResult
+      );
+
+      setPracticeSession(
+        completedSession || {
+          ...practiceSession,
+          status: "COMPLETED"
+        }
+      );
+
+      localStorage.removeItem(
+        PRACTICE_STORAGE_KEY
       );
 
       setScreen(
@@ -835,113 +1283,6 @@ function App() {
       setError(
         finishError?.message ||
           "Unable to finish practice."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ==========================================================
-  // PRACTICE NEXT
-  // ==========================================================
-
-  async function handlePracticeNext() {
-    if (
-      !practiceSession ||
-      !Array.isArray(
-        practiceSession.questions
-      ) ||
-      !practiceSession.questions[
-        practiceCurrentIndex
-      ]
-    ) {
-      setError(
-        "Current practice question is unavailable."
-      );
-      return;
-    }
-
-    if (
-      practiceSelectedOptionId === null
-    ) {
-      setError(
-        "Please select an answer first."
-      );
-      return;
-    }
-
-    const currentQuestion =
-      practiceSession.questions[
-        practiceCurrentIndex
-      ];
-
-    const timeTakenSeconds =
-      Math.max(
-        0,
-        Math.floor(
-          (Date.now() -
-            practiceAnswerStartTime) /
-            1000
-        )
-      );
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const answer =
-        await submitPracticeAnswer(
-          practiceSession.sessionId,
-          currentQuestion.sessionQuestionId,
-          practiceSelectedOptionId,
-          timeTakenSeconds
-        );
-
-      setPracticeSession(
-        previous => ({
-          ...previous,
-
-          answeredQuestions:
-            answer?.answeredQuestions ??
-            previous.answeredQuestions,
-
-          correctAnswers:
-            answer?.correctAnswers ??
-            previous.correctAnswers
-        })
-      );
-
-      const nextIndex =
-        practiceCurrentIndex + 1;
-
-      if (
-        nextIndex >=
-        practiceSession.questions.length
-      ) {
-        await finishPracticeSession();
-        return;
-      }
-
-      setPracticeCurrentIndex(
-        nextIndex
-      );
-
-      setPracticeSelectedOptionId(
-        null
-      );
-
-      setPracticeAnswerStartTime(
-        Date.now()
-      );
-    } catch (answerError) {
-      console.error(
-        "Failed to submit practice answer:",
-        answerError
-      );
-
-      setError(
-        answerError?.message ||
-          "Unable to submit practice answer."
       );
     } finally {
       setLoading(false);
@@ -1051,11 +1392,21 @@ function App() {
   // ==========================================================
 
   function handlePracticeResultDashboard() {
+    localStorage.removeItem(
+      PRACTICE_STORAGE_KEY
+    );
+
     setPracticeSession(null);
     setPracticeResult(null);
     setPracticeReview(null);
     setPracticeCurrentIndex(0);
     setPracticeSelectedOptionId(null);
+    setPracticeAnswers({});
+    setSubmittedPracticeQuestionIds(
+      new Set()
+    );
+    setPracticeTimeByQuestion({});
+    setPracticePaletteOpen(false);
 
     setSelectedSubject(null);
     setTopics([]);
@@ -1551,7 +1902,7 @@ function App() {
 
             <div>
               <h1>
-                MedPrep AI
+                MedPrep DSA
               </h1>
 
               <p>
@@ -1776,7 +2127,7 @@ function App() {
 
             <div>
               <strong>
-                MedPrep AI
+                MedPrep DSA
               </strong>
 
               <span>
@@ -2332,13 +2683,40 @@ function App() {
           100
         : 0;
 
+    const answeredCount =
+      practiceSession.questions.filter(
+        question =>
+          practiceAnswers[
+            question.sessionQuestionId
+          ] !== undefined &&
+          practiceAnswers[
+            question.sessionQuestionId
+          ] !== null
+      ).length;
+
+    const currentQuestionAnswered =
+      practiceAnswers[
+        currentQuestion.sessionQuestionId
+      ] !== undefined &&
+      practiceAnswers[
+        currentQuestion.sessionQuestionId
+      ] !== null;
+
+    const practiceTitle = [
+      practiceSession.subjectName ||
+        selectedSubject?.name ||
+        "Practice",
+      practiceSession.topicName
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
     return (
       <div className="exam-shell">
         <header className="exam-header">
           <div>
             <strong>
-              {selectedSubject?.name ||
-                "Practice"}
+              {practiceTitle}
             </strong>
 
             <span>
@@ -2349,14 +2727,22 @@ function App() {
             </span>
           </div>
 
-          <div className="exam-counter">
-            <strong>
-              {practiceCurrentIndex + 1}
-            </strong>
+          <div className="exam-counter practice-summary">
+            <div>
+              <strong>
+                {practiceCurrentIndex + 1}
+              </strong>
 
-            <span>
-              / {total}
-            </span>
+              <span>
+                / {total}
+              </span>
+            </div>
+
+            <small>
+              {answeredCount} answered ·{" "}
+              {total - answeredCount}{" "}
+              unanswered
+            </small>
           </div>
         </header>
 
@@ -2368,127 +2754,273 @@ function App() {
           />
         </div>
 
-        <main className="question-area">
-          <div className="question-card">
-            <div className="question-topline">
-              <span className="question-number">
-                Question{" "}
-                {practiceCurrentIndex + 1}
-              </span>
+        <main className="question-area practice-area">
+          <button
+            type="button"
+            className="secondary-button practice-palette-toggle"
+            onClick={() =>
+              setPracticePaletteOpen(
+                previous => !previous
+              )
+            }
+            aria-expanded={practicePaletteOpen}
+            aria-controls="practice-question-palette"
+          >
+            Questions · {answeredCount}/{total}{" "}
+            answered
+          </button>
 
-              <span className="exam-counter">
-                Answered{" "}
-                {practiceSession.answeredQuestions ??
-                  0}
-                {" / "}
-                {total}
-              </span>
-            </div>
+          <div className="practice-layout">
+            <section className="question-card">
+              <div className="question-topline">
+                <span className="question-number">
+                  Question{" "}
+                  {practiceCurrentIndex + 1}
+                </span>
 
-            <h1 className="question-text">
-              {
-                currentQuestion.questionText
-              }
-            </h1>
-
-            {error && (
-              <div className="error-box">
-                {error}
+                <span
+                  className={
+                    currentQuestionAnswered
+                      ? "practice-question-state answered"
+                      : "practice-question-state"
+                  }
+                >
+                  {currentQuestionAnswered
+                    ? "Answered"
+                    : "Unanswered"}
+                </span>
               </div>
-            )}
 
-            {options.length === 0 ? (
-              <div className="error-box">
-                This question has no options.
-              </div>
-            ) : (
-              <div className="options-list">
-                {options.map(
-                  (option, index) => {
-                    const selected =
-                      practiceSelectedOptionId ===
-                      option.id;
+              <h1 className="question-text">
+                {
+                  currentQuestion.questionText
+                }
+              </h1>
 
-                    const label =
-                      option.optionLabel ||
-                      String.fromCharCode(
-                        65 + index
+              {error && (
+                <div className="error-box">
+                  {error}
+                </div>
+              )}
+
+              {options.length === 0 ? (
+                <div className="error-box">
+                  This question has no options.
+                </div>
+              ) : (
+                <div className="options-list">
+                  {options.map(
+                    (option, index) => {
+                      const selected =
+                        practiceSelectedOptionId ===
+                        option.id;
+
+                      const label =
+                        option.optionLabel ||
+                        String.fromCharCode(
+                          65 + index
+                        );
+
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={
+                            selected
+                              ? "option-button selected"
+                              : "option-button"
+                          }
+                          onClick={() =>
+                            handlePracticeOptionSelect(
+                              option.id
+                            )
+                          }
+                          aria-pressed={selected}
+                          disabled={loading}
+                        >
+                          <span className="option-letter">
+                            {label}
+                          </span>
+
+                          <span className="option-text">
+                            {option.optionText}
+                          </span>
+
+                          <span className="option-radio">
+                            {selected ? "✓" : ""}
+                          </span>
+                        </button>
                       );
+                    }
+                  )}
+                </div>
+              )}
+
+              <div className="question-actions practice-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={
+                    handlePracticeClearAnswer
+                  }
+                  disabled={
+                    loading ||
+                    practiceSelectedOptionId ===
+                      null
+                  }
+                >
+                  Clear Answer
+                </button>
+
+                <div className="practice-nav-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={
+                      handlePracticePrevious
+                    }
+                    disabled={
+                      loading ||
+                      practiceCurrentIndex === 0
+                    }
+                  >
+                    ← Previous
+                  </button>
+
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={handlePracticeNext}
+                    disabled={
+                      loading ||
+                      practiceCurrentIndex ===
+                        total - 1
+                    }
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <aside
+              id="practice-question-palette"
+              className={
+                practicePaletteOpen
+                  ? "practice-palette open"
+                  : "practice-palette"
+              }
+              aria-label="Practice question navigation"
+            >
+              <div className="practice-palette-header">
+                <div>
+                  <strong>Questions</strong>
+                  <span>
+                    {answeredCount} of {total}{" "}
+                    answered
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="practice-palette-close"
+                  onClick={() =>
+                    setPracticePaletteOpen(false)
+                  }
+                  aria-label="Close question list"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="practice-question-grid">
+                {practiceSession.questions.map(
+                  (question, index) => {
+                    const answered =
+                      practiceAnswers[
+                        question.sessionQuestionId
+                      ] !== undefined &&
+                      practiceAnswers[
+                        question.sessionQuestionId
+                      ] !== null;
+
+                    const current =
+                      index ===
+                      practiceCurrentIndex;
 
                     return (
                       <button
                         key={
-                          option.id
+                          question.sessionQuestionId
                         }
                         type="button"
-                        className={
-                          selected
-                            ? "option-button selected"
-                            : "option-button"
-                        }
+                        className={[
+                          "practice-question-button",
+                          answered
+                            ? "answered"
+                            : "unanswered",
+                          current
+                            ? "current"
+                            : ""
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                         onClick={() =>
-                          handlePracticeOptionSelect(
-                            option.id
+                          handlePracticeQuestionSelect(
+                            index
                           )
                         }
-                        disabled={
-                          loading
+                        aria-current={
+                          current
+                            ? "step"
+                            : undefined
                         }
+                        aria-label={`Question ${
+                          index + 1
+                        }, ${
+                          answered
+                            ? "answered"
+                            : "unanswered"
+                        }${
+                          current
+                            ? ", current question"
+                            : ""
+                        }`}
+                        disabled={loading}
                       >
-                        <span className="option-letter">
-                          {label}
-                        </span>
-
-                        <span className="option-text">
-                          {
-                            option.optionText
-                          }
-                        </span>
-
-                        <span className="option-radio">
-                          {selected
-                            ? "✓"
-                            : ""}
-                        </span>
+                        {index + 1}
                       </button>
                     );
                   }
                 )}
               </div>
-            )}
 
-            <div className="question-actions">
+              <div className="practice-palette-legend">
+                <span>
+                  <i className="current" />
+                  Current
+                </span>
+                <span>
+                  <i className="answered" />
+                  Answered
+                </span>
+                <span>
+                  <i className="unanswered" />
+                  Unanswered
+                </span>
+              </div>
+
               <button
                 type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setPracticeSelectedOptionId(
-                    null
-                  )
-                }
+                className="primary-button practice-finish-button"
+                onClick={finishPracticeSession}
                 disabled={loading}
               >
-                Clear
+                {loading
+                  ? "Submitting Answers..."
+                  : "Finish Practice"}
               </button>
-
-              <button
-                type="button"
-                className="primary-button"
-                onClick={
-                  handlePracticeNext
-                }
-                disabled={
-                  loading ||
-                  practiceSelectedOptionId ===
-                    null
-                }
-              >
-                {practiceCurrentIndex ===
-                total - 1
-                  ? "Finish Practice"
-                  : "Next Question"}
-              </button>
-            </div>
+            </aside>
           </div>
         </main>
       </div>

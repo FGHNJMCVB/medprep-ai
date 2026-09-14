@@ -1470,3 +1470,250 @@ button {
     flex-direction: column;
   }
 }
+
+/* ==========================================================
+   PRACTICE QUESTION NAVIGATION
+   ========================================================== */
+
+.exam-counter.practice-summary {
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.practice-summary > div {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.practice-summary small {
+  color: #778195;
+  font-size: 12px;
+}
+
+.question-area.practice-area {
+  width: min(1240px, calc(100% - 40px));
+}
+
+.practice-palette-toggle {
+  display: none;
+  margin: 0 0 14px auto;
+}
+
+.practice-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+.practice-question-state {
+  padding: 6px 10px;
+  color: #667085;
+  background: #eef1f5;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.practice-question-state.answered {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.question-actions.practice-actions {
+  justify-content: space-between;
+  border-top: 1px solid #e8ebf1;
+  padding-top: 20px;
+}
+
+.practice-nav-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.practice-palette {
+  position: sticky;
+  top: 22px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #e5e9f0;
+  border-radius: 18px;
+  box-shadow: 0 15px 45px rgba(20, 29, 48, 0.06);
+}
+
+.practice-palette-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.practice-palette-header strong,
+.practice-palette-header span {
+  display: block;
+}
+
+.practice-palette-header strong {
+  color: #172033;
+  font-size: 16px;
+}
+
+.practice-palette-header span {
+  margin-top: 4px;
+  color: #778195;
+  font-size: 12px;
+}
+
+.practice-palette-close {
+  display: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #172033;
+  background: #eef1f6;
+  border: 0;
+  border-radius: 9px;
+  font-size: 22px;
+}
+
+.practice-question-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.practice-question-button {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  color: #596275;
+  background: #edf0f4;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.practice-question-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.practice-question-button.answered {
+  color: #14532d;
+  background: #bbf7d0;
+}
+
+.practice-question-button.current {
+  color: #ffffff;
+  background: #2563eb;
+  box-shadow: 0 0 0 2px #93c5fd;
+}
+
+.practice-question-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.practice-palette-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 18px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.practice-palette-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.practice-palette-legend i {
+  width: 11px;
+  height: 11px;
+  display: inline-block;
+  background: #edf0f4;
+  border-radius: 3px;
+}
+
+.practice-palette-legend i.current {
+  background: #2563eb;
+}
+
+.practice-palette-legend i.answered {
+  background: #bbf7d0;
+}
+
+.practice-finish-button {
+  width: 100%;
+  margin-top: 20px;
+}
+
+@media (max-width: 980px) {
+  .practice-palette-toggle {
+    display: block;
+  }
+
+  .practice-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-palette {
+    position: static;
+    display: none;
+    grid-row: 1;
+  }
+
+  .practice-palette.open {
+    display: block;
+  }
+
+  .practice-palette-close {
+    display: block;
+  }
+
+  .practice-question-grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .exam-counter.practice-summary {
+    align-items: flex-end;
+  }
+
+  .question-area.practice-area {
+    width: calc(100% - 24px);
+  }
+
+  .practice-question-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .practice-question-button {
+    min-height: 44px;
+    aspect-ratio: auto;
+  }
+
+  .question-actions.practice-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .practice-nav-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .practice-actions > button,
+  .practice-nav-actions button {
+    width: 100%;
+  }
+}

@@ -140,6 +140,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGeneral(
             Exception exception,
             HttpServletRequest request) {
+                exception.printStackTrace();
 
         ErrorResponse response =
                 new ErrorResponse(
