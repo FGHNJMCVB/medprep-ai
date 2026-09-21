@@ -2,23 +2,23 @@ package com.medprep.controller;
 
 import com.medprep.dto.MockTestAnswerRequest;
 import com.medprep.dto.MockTestAnswerResponse;
-import com.medprep.dto.MockTestHistoryResponse;
 import com.medprep.dto.MockTestResponse;
-import com.medprep.dto.MockTestResultResponse;
 import com.medprep.dto.MockTestStartRequest;
-import com.medprep.dto.PracticeReviewResponse;
 import com.medprep.dto.PracticeSessionResponse;
 import com.medprep.dto.SubjectMockTestStartRequest;
 
 import com.medprep.service.MockTestAnswerService;
 import com.medprep.service.MockTestBlueprintService;
-import com.medprep.service.MockTestResultService;
 import com.medprep.service.MockTestService;
-import com.medprep.service.MockTestSubmissionService;
-import com.medprep.service.PracticeSessionService;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import com.medprep.dto.MockTestResultResponse;
+import com.medprep.service.MockTestSubmissionService;
+
+import com.medprep.dto.MockTestHistoryResponse;
+import com.medprep.service.MockTestResultService;
 
 import java.util.List;
 
@@ -31,24 +31,22 @@ public class MockTestController {
     private final MockTestAnswerService mockTestAnswerService;
     private final MockTestSubmissionService mockTestSubmissionService;
     private final MockTestResultService mockTestResultService;
-    private final PracticeSessionService practiceSessionService;
 
     public MockTestController(
             MockTestService mockTestService,
             MockTestBlueprintService mockTestBlueprintService,
             MockTestAnswerService mockTestAnswerService,
             MockTestSubmissionService mockTestSubmissionService,
-            MockTestResultService mockTestResultService,
-            PracticeSessionService practiceSessionService) {
+            MockTestResultService mockTestResultService) {
 
         this.mockTestService = mockTestService;
 
         this.mockTestBlueprintService = mockTestBlueprintService;
 
         this.mockTestAnswerService = mockTestAnswerService;
+
         this.mockTestSubmissionService = mockTestSubmissionService;
         this.mockTestResultService = mockTestResultService;
-        this.practiceSessionService = practiceSessionService;
     }
 
     // ==========================================================
@@ -118,7 +116,6 @@ public class MockTestController {
                 request,
                 authentication.getName());
     }
-
     // ==========================================================
     // SUBMIT MOCK TEST
     // ==========================================================
@@ -132,7 +129,6 @@ public class MockTestController {
                 sessionId,
                 authentication.getName());
     }
-
     // ==========================================================
     // GET COMPLETED MOCK TEST RESULT
     // ==========================================================
@@ -146,21 +142,6 @@ public class MockTestController {
                 sessionId,
                 authentication.getName());
     }
-
-    // ==========================================================
-    // GET COMPLETED MOCK TEST REVIEW
-    // ==========================================================
-
-    @GetMapping("/{sessionId}/review")
-    public PracticeReviewResponse getMockTestReview(
-            @PathVariable Long sessionId,
-            Authentication authentication) {
-
-        return practiceSessionService.getSessionReview(
-                sessionId,
-                authentication.getName());
-    }
-
     // ==========================================================
     // GET MOCK TEST HISTORY
     // ==========================================================
@@ -172,7 +153,6 @@ public class MockTestController {
         return mockTestResultService.getHistory(
                 authentication.getName());
     }
-
     // ==========================================================
     // GET CURRENT MOCK TEST
     // ==========================================================

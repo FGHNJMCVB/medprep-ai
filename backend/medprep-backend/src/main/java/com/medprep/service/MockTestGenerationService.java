@@ -1,7 +1,5 @@
 package com.medprep.service;
 
-import com.medprep.dto.QuestionGenerationRequest;
-
 import com.medprep.entity.PracticeSession;
 import com.medprep.entity.Question;
 import com.medprep.entity.SessionQuestion;
@@ -13,46 +11,34 @@ import com.medprep.repository.SessionQuestionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class MockTestGenerationService {
 
-    private final AiQuestionGenerationService aiQuestionGenerationService;
-
     private final PracticeSessionRepository practiceSessionRepository;
-
     private final SessionQuestionRepository sessionQuestionRepository;
-
     private final QuestionRepository questionRepository;
-
     private final MockTestBlueprintService mockTestBlueprintService;
 
     public MockTestGenerationService(
-            AiQuestionGenerationService aiQuestionGenerationService,
             PracticeSessionRepository practiceSessionRepository,
             SessionQuestionRepository sessionQuestionRepository,
             QuestionRepository questionRepository,
             MockTestBlueprintService mockTestBlueprintService) {
 
-        this.aiQuestionGenerationService =
-                aiQuestionGenerationService;
-
-        this.practiceSessionRepository =
-                practiceSessionRepository;
-
-        this.sessionQuestionRepository =
-                sessionQuestionRepository;
-
-        this.questionRepository =
-                questionRepository;
-
-        this.mockTestBlueprintService =
-                mockTestBlueprintService;
+        this.practiceSessionRepository = practiceSessionRepository;
+        this.sessionQuestionRepository = sessionQuestionRepository;
+        this.questionRepository = questionRepository;
+        this.mockTestBlueprintService = mockTestBlueprintService;
     }
 
     // ==========================================================
-    // GENERATE COMPLETE MOCK TEST
+    // ASSEMBLE COMPLETE MOCK TEST FROM THE QUESTION BANK
     // ==========================================================
 
     @Transactional(rollbackFor = Exception.class)
@@ -61,291 +47,160 @@ public class MockTestGenerationService {
             int totalQuestions) {
 
         if(session == null) {
-
             throw new IllegalArgumentException(
                     "Practice session is required"
             );
         }
 
         if(totalQuestions <= 0) {
-
             throw new IllegalArgumentException(
                     "Total questions must be greater than zero"
             );
         }
 
         List<MockTestBlueprintService.GenerationBlock> blueprint =
-                mockTestBlueprintService.buildBlueprint(
-                        totalQuestions
-                );
+                mockTestBlueprintService.buildBlueprint(totalQuestions);
 
-        if(blueprint == null ||
-           blueprint.isEmpty()) {
-
+        if(blueprint == null || blueprint.isEmpty()) {
             throw new IllegalStateException(
                     "Unable to build mock test blueprint"
             );
         }
 
-        int generatedCount = 0;
+        List<Question> selectedQuestions = new ArrayList<>();
+        Set<Long> selectedIds = new HashSet<>();
 
-        int questionNumber = 1;
-
-        for(MockTestBlueprintService.GenerationBlock block :
-                blueprint) {
-
-            if(block == null) {
-
-                throw new IllegalStateException(
-                        "Mock test blueprint contains a null block"
-                );
-            }
-
-            if(generatedCount >= totalQuestions) {
-
-                break;
-            }
-
-            int remainingForBlock =
-                    Math.min(
-                            block.getQuestionCount(),
-                            totalQuestions - generatedCount
-                    );
-
-            if(remainingForBlock <= 0) {
-
+        for(MockTestBlueprintService.GenerationBlock block : blueprint) {
+            if(block == null || block.getQuestionCount() <= 0) {
                 continue;
             }
 
-            while(remainingForBlock > 0) {
+            int required = block.getQuestionCount();
 
-                int batchSize =
-                        Math.min(
-                                remainingForBlock,
-                                10
-                        );
+            required -= addQuestions(
+                    questionRepository
+                            .findByTopicIdAndDifficultyAndActiveTrueOrderByIdAsc(
+                                    block.getTopic().getId(),
+                                    block.getDifficulty()
+                            ),
+                    required,
+                    selectedQuestions,
+                    selectedIds
+            );
 
-                QuestionGenerationRequest request =
-                        buildGenerationRequest(
-                                block,
-                                batchSize
-                        );
+            // Prefer the planned topic when its exact difficulty pool is
+            // temporarily short, then preserve difficulty within the subject.
+            if(required > 0) {
+                required -= addQuestions(
+                        questionRepository
+                                .findByTopicIdAndActiveTrueOrderByIdAsc(
+                                        block.getTopic().getId()
+                                ),
+                        required,
+                        selectedQuestions,
+                        selectedIds
+                );
+            }
 
-                List<Long> questionIds =
-                        aiQuestionGenerationService
-                                .generateAndSaveQuestions(
-                                        request
-                                );
+            if(required > 0) {
+                required -= addQuestions(
+                        questionRepository
+                                .findBySubjectIdAndDifficultyAndActiveTrueOrderByIdAsc(
+                                        block.getSubject().getId(),
+                                        block.getDifficulty()
+                                ),
+                        required,
+                        selectedQuestions,
+                        selectedIds
+                );
+            }
 
-                if(questionIds == null ||
-                   questionIds.isEmpty()) {
+            if(required > 0) {
+                required -= addQuestions(
+                        questionRepository
+                                .findBySubjectIdAndActiveTrueOrderByIdAsc(
+                                        block.getSubject().getId()
+                                ),
+                        required,
+                        selectedQuestions,
+                        selectedIds
+                );
+            }
 
-                    throw new IllegalStateException(
-                            "AI generated no usable questions for "
-                                    + block.getSubject().getName()
-                                    + " - "
-                                    + block.getTopic().getName()
-                    );
-                }
-
-                int acceptedInBatch = 0;
-
-                for(Long questionId :
-                        questionIds) {
-
-                    if(questionId == null) {
-
-                        continue;
-                    }
-
-                    if(generatedCount >= totalQuestions) {
-
-                        break;
-                    }
-
-                    if(acceptedInBatch >= batchSize) {
-
-                        break;
-                    }
-
-                    Question question =
-                            questionRepository
-                                    .findById(questionId)
-                                    .orElseThrow(() ->
-                                            new IllegalStateException(
-                                                    "Generated question not found: "
-                                                            + questionId
-                                            )
-                                    );
-
-                    SessionQuestion sessionQuestion =
-                            new SessionQuestion(
-                                    session,
-                                    question,
-                                    questionNumber
-                            );
-
-                    sessionQuestionRepository.save(
-                            sessionQuestion
-                    );
-
-                    questionNumber++;
-
-                    generatedCount++;
-
-                    acceptedInBatch++;
-                }
-
-                if(acceptedInBatch <= 0) {
-
-                    throw new IllegalStateException(
-                            "No questions were accepted from AI batch for "
-                                    + block.getSubject().getName()
-                                    + " - "
-                                    + block.getTopic().getName()
-                    );
-                }
-
-                remainingForBlock -=
-                        acceptedInBatch;
+            if(required > 0) {
+                throw new IllegalStateException(
+                        "The question bank does not have enough unique active questions for "
+                                + block.getSubject().getName()
+                                + " - "
+                                + block.getTopic().getName()
+                                + ". Add at least "
+                                + required
+                                + " more question(s) for this blueprint allocation."
+                );
             }
         }
 
-        // ======================================================
-        // FINAL VALIDATION
-        // ======================================================
-
-        if(generatedCount != totalQuestions) {
-
+        if(selectedQuestions.size() != totalQuestions) {
             throw new IllegalStateException(
-                    "Unable to generate complete mock test. "
-                            + "Required: "
+                    "Unable to assemble complete mock test. Required: "
                             + totalQuestions
-                            + ", Generated: "
-                            + generatedCount
-        );
+                            + ", selected: "
+                            + selectedQuestions.size()
+            );
         }
 
-        // ======================================================
-        // UPDATE SESSION ONLY AFTER COMPLETE GENERATION
-        // ======================================================
+        Collections.shuffle(selectedQuestions);
 
-        session.setTotalQuestions(
-                generatedCount
-        );
+        int displayOrder = 1;
 
-        session.setAnsweredQuestions(
-                0
-        );
+        for(Question question : selectedQuestions) {
+            sessionQuestionRepository.save(
+                    new SessionQuestion(
+                            session,
+                            question,
+                            displayOrder++
+                    )
+            );
+        }
 
-        session.setCorrectAnswers(
-                0
-        );
+        session.setTotalQuestions(selectedQuestions.size());
+        session.setAnsweredQuestions(0);
+        session.setCorrectAnswers(0);
 
-        practiceSessionRepository.save(
-                session
-        );
+        practiceSessionRepository.save(session);
     }
 
-    // ==========================================================
-    // BUILD AI GENERATION REQUEST
-    // ==========================================================
+    private int addQuestions(
+            List<Question> candidates,
+            int maximum,
+            List<Question> selectedQuestions,
+            Set<Long> selectedIds) {
 
-    private QuestionGenerationRequest buildGenerationRequest(
-            MockTestBlueprintService.GenerationBlock block,
-            int count) {
-
-        QuestionGenerationRequest request =
-                new QuestionGenerationRequest();
-
-        request.setSubjectId(
-                block.getSubject().getId()
-        );
-
-        request.setTopicId(
-                block.getTopic().getId()
-        );
-
-        request.setCount(
-                count
-        );
-
-        request.setDifficulty(
-                block.getDifficulty()
-        );
-
-        request.setHighYield(
-                block.getTrend() != null
-                        ? block.getTrend().getHighYield()
-                        : true
-        );
-
-        request.setClinicalCase(
-                block.isClinicalCase()
-        );
-
-        request.setImageBased(
-                block.isImageBased()
-        );
-
-        StringBuilder focus =
-                new StringBuilder();
-
-        focus.append(
-                "Generate original FMGE-aligned questions "
-                        + "for "
-                        + block.getSubject().getName()
-                        + " - "
-                        + block.getTopic().getName()
-                        + "."
-        );
-
-        if(block.getTrend() != null) {
-
-            focus.append(
-                    " Prioritize the high-yield concept: "
-                            + block.getTrend().getConceptTag()
-                            + "."
-            );
-
-            focus.append(
-                    " Use the trend information as a topic-priority "
-                            + "signal, not as proof that an exact question "
-                            + "will appear in a future examination."
-            );
+        if(maximum <= 0 || candidates == null || candidates.isEmpty()) {
+            return 0;
         }
 
-        focus.append(" ");
+        List<Question> shuffled = new ArrayList<>(candidates);
+        Collections.shuffle(shuffled);
 
-        focus.append(
-                block.getDifficultyProfile()
-        );
+        int added = 0;
 
-        focus.append(" ");
+        for(Question question : shuffled) {
+            if(question == null ||
+               question.getId() == null ||
+               selectedIds.contains(question.getId())) {
+                continue;
+            }
 
-        focus.append(
-                block.getStyleProfile()
-        );
+            selectedQuestions.add(question);
+            selectedIds.add(question.getId());
+            added++;
 
-        focus.append(
-                " Every question must have exactly four options "
-                        + "and exactly one correct answer."
-        );
+            if(added == maximum) {
+                break;
+            }
+        }
 
-        focus.append(
-                " Avoid repeating the same fact or question pattern "
-                        + "within the batch."
-        );
-
-        focus.append(
-                " Explanations must be medically accurate and "
-                        + "directly support the correct answer."
-        );
-
-        request.setFocus(
-                focus.toString()
-        );
-
-        return request;
+        return added;
     }
 }

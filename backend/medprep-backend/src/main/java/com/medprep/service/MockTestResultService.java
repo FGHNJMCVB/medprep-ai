@@ -102,7 +102,7 @@ public class MockTestResultService {
                 result.unansweredQuestions,
                 result.score,
                 result.percentage,
-                config.getPassingMarks(),
+                result.passingMarks,
                 result.passed,
                 config.getNegativeMarking(),
                 session.getStartedAt(),
@@ -140,8 +140,7 @@ public class MockTestResultService {
                 continue;
             }
 
-            if(session.getType()
-                    != PracticeSessionType.MOCK_TEST) {
+            if(!isMockTestSession(session)) {
 
                 continue;
             }
@@ -170,6 +169,13 @@ public class MockTestResultService {
                     new MockTestHistoryResponse(
                             session.getId(),
                             session.getStatus(),
+                            session.getType(),
+                            session.getSubject() != null
+                                    ? session.getSubject().getId()
+                                    : null,
+                            session.getSubject() != null
+                                    ? session.getSubject().getName()
+                                    : null,
                             result.totalQuestions,
                             result.answeredQuestions,
                             result.correctAnswers,
@@ -248,8 +254,15 @@ public class MockTestResultService {
                         ? (score / totalQuestions) * 100.0
                         : 0.0;
 
+        int passingMarks =
+                calculatePassingMarks(
+                        session,
+                        totalQuestions,
+                        config
+                );
+
         boolean passed =
-                score >= config.getPassingMarks();
+                score >= passingMarks;
 
         return new ResultValues(
                 totalQuestions,
@@ -259,6 +272,7 @@ public class MockTestResultService {
                 unansweredQuestions,
                 score,
                 percentage,
+                passingMarks,
                 passed
         );
     }
@@ -357,13 +371,35 @@ public class MockTestResultService {
     private void validateMockTest(
             PracticeSession session) {
 
-        if(session.getType()
-                != PracticeSessionType.MOCK_TEST) {
+        if(!isMockTestSession(session)) {
 
             throw new IllegalArgumentException(
                     "This session is not a mock test"
             );
         }
+    }
+
+    private boolean isMockTestSession(
+            PracticeSession session) {
+
+        return session.getType() == PracticeSessionType.MOCK_TEST ||
+                session.getType() == PracticeSessionType.SUBJECT_MOCK_TEST;
+    }
+
+    private int calculatePassingMarks(
+            PracticeSession session,
+            int totalQuestions,
+            MockTestConfig config) {
+
+        if(session.getType() == PracticeSessionType.MOCK_TEST) {
+            return config.getPassingMarks();
+        }
+
+        return (int) Math.ceil(
+                ((double) config.getPassingMarks()
+                        / config.getTotalQuestions())
+                        * totalQuestions
+        );
     }
 
     // ==========================================================
@@ -401,6 +437,8 @@ public class MockTestResultService {
 
         private final double percentage;
 
+        private final int passingMarks;
+
         private final boolean passed;
 
         private ResultValues(
@@ -411,6 +449,7 @@ public class MockTestResultService {
                 int unansweredQuestions,
                 double score,
                 double percentage,
+                int passingMarks,
                 boolean passed) {
 
             this.totalQuestions =
@@ -433,6 +472,9 @@ public class MockTestResultService {
 
             this.percentage =
                     percentage;
+
+            this.passingMarks =
+                    passingMarks;
 
             this.passed =
                     passed;

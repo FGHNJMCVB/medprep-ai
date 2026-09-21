@@ -230,15 +230,6 @@ export function getMockResult(
 }
 
 
-export function getMockReview(
-  sessionId
-) {
-  return apiRequest(
-    `/api/mock-tests/${sessionId}/review`
-  );
-}
-
-
 export function getMockHistory() {
   return apiRequest(
     "/api/mock-tests/history"

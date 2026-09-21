@@ -13,7 +13,6 @@ import {
   submitAnswer,
   submitMockTest,
   getMockResult,
-  getMockReview,
   getMockHistory,
   startPractice,
   submitPracticeAnswer,
@@ -211,9 +210,6 @@ function App() {
       }
     });
 
-  const [mockPaletteOpen, setMockPaletteOpen] =
-    useState(false);
-
   // Keeps the latest finishExam function available to the timer
   // without resetting the timer whenever answers change.
   const finishExamRef = useRef(null);
@@ -347,7 +343,6 @@ function App() {
   // ==========================================================
 
   const [result, setResult] = useState(null);
-  const [reviewMode, setReviewMode] = useState("practice");
   const [history, setHistory] = useState([]);
 
   const [practiceHistory, setPracticeHistory] =
@@ -821,7 +816,6 @@ function App() {
     setResult(null);
     setPracticeResult(null);
     setPracticeReview(null);
-    setReviewMode("practice");
 
     setHistory([]);
     setPracticeHistory([]);
@@ -839,7 +833,6 @@ function App() {
     setSelectedOptionId(null);
     setMockPart(1);
     setShowPartTransition(false);
-    setMockPaletteOpen(false);
     setMockRemainingSeconds(0);
     setMockAnswers({});
     setSubmittedMockQuestionIds(new Set());
@@ -1356,7 +1349,6 @@ function App() {
       }
 
       setPracticeReview(review);
-      setReviewMode("practice");
       setScreen("practice-review");
 
     } catch (reviewError) {
@@ -1402,7 +1394,6 @@ function App() {
       }
 
       setPracticeReview(review);
-      setReviewMode("practice");
       setPracticeSession(null);
       setPracticeResult(null);
       setScreen("practice-review");
@@ -1415,49 +1406,6 @@ function App() {
       setError(
         reviewError?.message ||
           "Unable to load practice review."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ==========================================================
-  // MOCK TEST REVIEW
-  // ==========================================================
-
-  async function handleMockReview(sessionId) {
-    if (!sessionId) {
-      setError("Mock test session is unavailable.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const review = await getMockReview(sessionId);
-
-      if (
-        !review ||
-        !Array.isArray(review.questions)
-      ) {
-        throw new Error(
-          "Mock test review data is unavailable."
-        );
-      }
-
-      setPracticeReview(review);
-      setReviewMode("mock");
-      setScreen("practice-review");
-    } catch (reviewError) {
-      console.error(
-        "Failed to load mock test review:",
-        reviewError
-      );
-
-      setError(
-        reviewError?.message ||
-          "Unable to load mock test review."
       );
     } finally {
       setLoading(false);
@@ -1490,36 +1438,6 @@ function App() {
 
     setError("");
     setScreen("dashboard");
-  }
-
-  function handleMockResultDashboard() {
-    localStorage.removeItem(MOCK_STORAGE_KEY);
-
-    setSession(null);
-    setResult(null);
-    setPracticeReview(null);
-    setReviewMode("practice");
-    setCurrentIndex(0);
-    setSelectedOptionId(null);
-    setMockAnswers({});
-    setSubmittedMockQuestionIds(new Set());
-    setMockPart(1);
-    setShowPartTransition(false);
-    setMockPaletteOpen(false);
-    setMockRemainingSeconds(0);
-    setSelectedSubject(null);
-    setTopics([]);
-    setError("");
-    setScreen("dashboard");
-  }
-
-  function handleReviewDashboard() {
-    if (reviewMode === "mock") {
-      handleMockResultDashboard();
-      return;
-    }
-
-    handlePracticeResultDashboard();
   }
 
   // ==========================================================
@@ -1563,7 +1481,6 @@ function App() {
       setSubmittedMockQuestionIds(new Set());
       setMockPart(1);
       setShowPartTransition(false);
-      setMockPaletteOpen(false);
       setSubjectMockOpen(false);
       setAnswerStartTime(
         Date.now()
@@ -1631,7 +1548,6 @@ function App() {
       setSubmittedMockQuestionIds(new Set());
       setMockPart(1);
       setShowPartTransition(false);
-      setMockPaletteOpen(false);
       setAnswerStartTime(Date.now());
       setMockRemainingSeconds(questionCount * 60);
       setSubjectMockOpen(false);
@@ -1767,7 +1683,6 @@ function App() {
       session.questions[index];
 
     setCurrentIndex(index);
-    setMockPaletteOpen(false);
     setSelectedOptionId(
       mockAnswers[targetQuestion.sessionQuestionId] ?? null
     );
@@ -2079,7 +1994,7 @@ function App() {
       authMode === "register";
 
     return (
-      <div className="app-shell auth-shell">
+      <div className="app-shell">
         <main className="auth-card">
           <div className="brand">
             <div className="brand-mark">
@@ -2096,10 +2011,6 @@ function App() {
               </p>
             </div>
           </div>
-
-          <p className="auth-kicker">
-            Your FMGE study space
-          </p>
 
           <h2>
             {isRegister
@@ -3368,13 +3279,9 @@ function App() {
               </strong>
 
               <span>
-                SCORE
+                ACCURACY
               </span>
             </div>
-
-            <p className="muted result-score-note">
-              Correct answers are divided by all questions. Unanswered questions receive no marks.
-            </p>
           </section>
 
           <section className="result-grid">
@@ -3413,7 +3320,7 @@ function App() {
 
             <div className="result-card">
               <span>
-                Incorrect (answered)
+                Wrong
               </span>
 
               <strong>
@@ -3508,9 +3415,7 @@ function App() {
               </strong>
 
               <span>
-                {reviewMode === "mock"
-                  ? "Mock Test Review"
-                  : "Practice Review"}
+                Practice Review
               </span>
             </div>
 
@@ -3520,7 +3425,7 @@ function App() {
             type="button"
             className="ghost-button"
             onClick={
-              handleReviewDashboard
+              handlePracticeResultDashboard
             }
           >
             Dashboard
@@ -3543,9 +3448,7 @@ function App() {
           >
 
             <p className="eyebrow">
-              {reviewMode === "mock"
-                ? "MOCK TEST REVIEW"
-                : "PRACTICE REVIEW"}
+              PRACTICE REVIEW
             </p>
 
             <h1>
@@ -3793,16 +3696,13 @@ function App() {
             }}
           >
 
-            {(practiceResult ||
-              (reviewMode === "mock" && result)) && (
+            {practiceResult && (
               <button
                 type="button"
                 className="secondary-button large"
                 onClick={() =>
                   setScreen(
-                    reviewMode === "mock"
-                      ? "result"
-                      : "practice-result"
+                    "practice-result"
                   )
                 }
               >
@@ -3814,7 +3714,7 @@ function App() {
               type="button"
               className="primary-button large"
               onClick={
-                handleReviewDashboard
+                handlePracticeResultDashboard
               }
             >
               Back to Dashboard
@@ -3904,11 +3804,6 @@ function App() {
 
     const partUnansweredCount =
       Math.max(0, partTotal - partAnsweredCount);
-
-    const currentQuestionAnswered =
-      mockAnswers[
-        currentQuestion.sessionQuestionId
-      ] != null;
 
     const progress =
       partTotal > 0
@@ -4028,36 +3923,26 @@ function App() {
           />
         </div>
 
-        <main className="question-area practice-area">
-          <button
-            type="button"
-            className="secondary-button practice-palette-toggle"
-            onClick={() =>
-              setMockPaletteOpen(previous => !previous)
-            }
-            aria-expanded={mockPaletteOpen}
-            aria-controls="mock-question-palette"
+        <main className="question-area">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(0, 1fr) 280px",
+              gap: "24px",
+              alignItems: "start"
+            }}
           >
-            Questions · {partAnsweredCount} answered · {partUnansweredCount} unanswered
-          </button>
-
-          <div className="practice-layout">
-            <section className="question-card">
+            <div className="question-card">
               <div className="question-topline">
                 <span className="question-number">
                   Question {currentIndex - partStartIndex + 1}
                 </span>
 
-                <span
-                  className={
-                    currentQuestionAnswered
-                      ? "practice-question-state answered"
-                      : "practice-question-state"
-                  }
-                >
-                  {currentQuestionAnswered
-                    ? "Answered"
-                    : "Unanswered"}
+                <span className="exam-counter">
+                  {subjectMock
+                    ? `Answered ${partAnsweredCount} / ${partTotal}`
+                    : `Part ${mockPart} · Answered ${partAnsweredCount} / ${partTotal}`}
                 </span>
               </div>
 
@@ -4123,30 +4008,44 @@ function App() {
                 </div>
               )}
 
-              <div className="question-actions practice-actions">
+              <div
+                style={{
+                  marginTop: "20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  flexWrap: "wrap"
+                }}
+              >
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={handleClearAnswer}
+                  onClick={handlePrevious}
                   disabled={
                     loading ||
-                    selectedOptionId === null
+                    currentIndex === partStartIndex
                   }
                 >
-                  Clear Answer
+                  ← Previous
                 </button>
 
-                <div className="practice-nav-actions">
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap"
+                  }}
+                >
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={handlePrevious}
+                    onClick={handleClearAnswer}
                     disabled={
                       loading ||
-                      currentIndex === partStartIndex
+                      selectedOptionId === null
                     }
                   >
-                    ← Previous
+                    Clear
                   </button>
 
                   <button
@@ -4171,41 +4070,32 @@ function App() {
               >
                 You can leave a question unanswered and return to it later.
               </div>
-            </section>
+            </div>
 
             <aside
-              id="mock-question-palette"
-              className={
-                mockPaletteOpen
-                  ? "practice-palette open"
-                  : "practice-palette"
-              }
-              aria-label="Mock test question navigation"
+              className="question-card"
+              style={{
+                position: "sticky",
+                top: "20px"
+              }}
             >
-              <div className="practice-palette-header">
-                <div>
-                  <strong>
-                    {subjectMock
-                      ? "Questions"
-                      : `Part ${mockPart} Questions`}
-                  </strong>
-
-                  <span>
-                    {partAnsweredCount} of {partTotal} answered
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="practice-palette-close"
-                  onClick={() => setMockPaletteOpen(false)}
-                  aria-label="Close question list"
-                >
-                  ×
-                </button>
+              <div className="question-topline">
+                <strong>
+                  {subjectMock
+                    ? "Question Navigator"
+                    : `Part ${mockPart} Navigator`}
+                </strong>
               </div>
 
-              <div className="practice-question-grid">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(5, minmax(0, 1fr))",
+                  gap: "8px",
+                  marginTop: "16px"
+                }}
+              >
                 {session.questions
                   .slice(partStartIndex, partEndIndex + 1)
                   .map((question, partIndex) => {
@@ -4218,33 +4108,33 @@ function App() {
                     const current =
                       index === currentIndex;
 
+                    let className =
+                      "secondary-button";
+
+                    if (answered && current) {
+                      className =
+                        "primary-button";
+                    } else if (answered) {
+                      className =
+                        "primary-button";
+                    }
+
                     return (
                       <button
                         key={
                           question.sessionQuestionId
                         }
                         type="button"
-                        className={[
-                          "practice-question-button",
-                          answered
-                            ? "answered"
-                            : "unanswered",
-                          current
-                            ? "current"
-                            : ""
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
+                        className={className}
                         onClick={() =>
                           goToMockQuestion(index)
                         }
                         disabled={loading}
-                        aria-current={
-                          current ? "step" : undefined
-                        }
-                        aria-label={`Question ${index + 1}, ${
-                          answered ? "answered" : "unanswered"
-                        }`}
+                        style={{
+                          minHeight: "42px",
+                          padding: "8px",
+                          fontSize: "13px"
+                        }}
                       >
                         {index + 1}
                       </button>
@@ -4253,26 +4143,31 @@ function App() {
                 )}
               </div>
 
-              <div className="practice-palette-legend">
+              <div
+                style={{
+                  marginTop: "18px",
+                  display: "grid",
+                  gap: "8px"
+                }}
+              >
                 <span>
-                  <i className="current" />
-                  Current
+                  Answered: <strong>{partAnsweredCount}</strong>
                 </span>
+
                 <span>
-                  <i className="answered" />
-                  Answered
-                </span>
-                <span>
-                  <i className="unanswered" />
-                  Unanswered
+                  Unanswered: <strong>{partUnansweredCount}</strong>
                 </span>
               </div>
 
               <button
                 type="button"
-                className="primary-button practice-finish-button"
+                className="primary-button large"
                 onClick={handleSubmitExam}
                 disabled={loading}
+                style={{
+                  width: "100%",
+                  marginTop: "20px"
+                }}
               >
                 {loading
                   ? "Submitting..."
@@ -4366,7 +4261,19 @@ function App() {
 
           <button
             className="ghost-button"
-            onClick={handleMockResultDashboard}
+            onClick={() => {
+              setResult(null);
+              setSession(null);
+              localStorage.removeItem(MOCK_STORAGE_KEY);
+              setCurrentIndex(0);
+              setSelectedOptionId(
+                null
+              );
+              setMockAnswers({});
+              setSubmittedMockQuestionIds(new Set());
+              setError("");
+              setScreen("dashboard");
+            }}
           >
             Dashboard
           </button>
@@ -4395,10 +4302,6 @@ function App() {
                   : "NOT PASSED"}
               </span>
             </div>
-
-            <p className="muted result-score-note">
-              Correct answers are divided by all questions. Unanswered questions receive no marks.
-            </p>
           </section>
 
           <section className="result-grid">
@@ -4443,28 +4346,23 @@ function App() {
             </div>
           </section>
 
-          <div className="result-actions">
-            <button
-              type="button"
-              className="primary-button large"
-              onClick={() =>
-                handleMockReview(result?.sessionId)
-              }
-              disabled={loading}
-            >
-              {loading
-                ? "Loading Review..."
-                : "Review Answers"}
-            </button>
-
-            <button
-              type="button"
-              className="secondary-button large"
-              onClick={handleMockResultDashboard}
-            >
-              Back to Dashboard
-            </button>
-          </div>
+          <button
+            className="primary-button large"
+            onClick={() => {
+              setResult(null);
+              setSession(null);
+              setCurrentIndex(0);
+              setSelectedOptionId(
+                null
+              );
+              setSelectedSubject(null);
+              setTopics([]);
+              setError("");
+              setScreen("dashboard");
+            }}
+          >
+            Back to Dashboard
+          </button>
         </main>
       </div>
     );

@@ -1,6 +1,7 @@
 package com.medprep.dto;
 
 import com.medprep.entity.PracticeSessionStatus;
+import com.medprep.entity.PracticeSessionType;
 
 import java.time.LocalDateTime;
 
@@ -9,6 +10,12 @@ public class MockTestHistoryResponse {
     private Long sessionId;
 
     private PracticeSessionStatus status;
+
+    private PracticeSessionType type;
+
+    private Long subjectId;
+
+    private String subjectName;
 
     private Integer totalQuestions;
 
@@ -36,6 +43,9 @@ public class MockTestHistoryResponse {
     public MockTestHistoryResponse(
             Long sessionId,
             PracticeSessionStatus status,
+            PracticeSessionType type,
+            Long subjectId,
+            String subjectName,
             Integer totalQuestions,
             Integer answeredQuestions,
             Integer correctAnswers,
@@ -49,6 +59,9 @@ public class MockTestHistoryResponse {
 
         this.sessionId = sessionId;
         this.status = status;
+        this.type = type;
+        this.subjectId = subjectId;
+        this.subjectName = subjectName;
         this.totalQuestions = totalQuestions;
         this.answeredQuestions = answeredQuestions;
         this.correctAnswers = correctAnswers;
@@ -67,6 +80,18 @@ public class MockTestHistoryResponse {
 
     public PracticeSessionStatus getStatus() {
         return status;
+    }
+
+    public PracticeSessionType getType() {
+        return type;
+    }
+
+    public Long getSubjectId() {
+        return subjectId;
+    }
+
+    public String getSubjectName() {
+        return subjectName;
     }
 
     public Integer getTotalQuestions() {

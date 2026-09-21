@@ -5,6 +5,7 @@ import com.medprep.dto.MockTestResultResponse;
 import com.medprep.entity.MockTestConfig;
 import com.medprep.entity.PracticeSession;
 import com.medprep.entity.PracticeSessionStatus;
+import com.medprep.entity.PracticeSessionType;
 import com.medprep.entity.SessionQuestion;
 import com.medprep.entity.User;
 
@@ -97,6 +98,12 @@ public class MockTestSubmissionService {
 
             throw new IllegalArgumentException(
                     "You do not have access to this session"
+            );
+        }
+
+        if(!isMockTestSession(session)) {
+            throw new IllegalArgumentException(
+                    "This session is not a mock test"
             );
         }
 
@@ -224,8 +231,15 @@ public class MockTestSubmissionService {
         // Passing rule.
         // ------------------------------------------------------
 
+        int passingMarks =
+                calculatePassingMarks(
+                        session,
+                        totalQuestions,
+                        config
+                );
+
         boolean passed =
-                score >= config.getPassingMarks();
+                score >= passingMarks;
 
         // ------------------------------------------------------
         // Update session.
@@ -272,7 +286,7 @@ public class MockTestSubmissionService {
                 unansweredQuestions,
                 score,
                 percentage,
-                config.getPassingMarks(),
+                passingMarks,
                 passed,
                 config.getNegativeMarking(),
                 session.getStartedAt(),
@@ -314,5 +328,28 @@ public class MockTestSubmissionService {
         }
 
         return score;
+    }
+
+    private boolean isMockTestSession(
+            PracticeSession session) {
+
+        return session.getType() == PracticeSessionType.MOCK_TEST ||
+                session.getType() == PracticeSessionType.SUBJECT_MOCK_TEST;
+    }
+
+    private int calculatePassingMarks(
+            PracticeSession session,
+            int totalQuestions,
+            MockTestConfig config) {
+
+        if(session.getType() == PracticeSessionType.MOCK_TEST) {
+            return config.getPassingMarks();
+        }
+
+        return (int) Math.ceil(
+                ((double) config.getPassingMarks()
+                        / config.getTotalQuestions())
+                        * totalQuestions
+        );
     }
 }

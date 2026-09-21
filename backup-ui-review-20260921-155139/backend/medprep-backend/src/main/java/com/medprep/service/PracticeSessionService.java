@@ -309,10 +309,10 @@ public class PracticeSessionService {
 
                 double accuracy = 0.0;
 
-                if (total > 0) {
+                if (answered > 0) {
 
                         accuracy = ((double) correct /
-                                        total) *
+                                        answered) *
                                         100.0;
                 }
 
@@ -385,10 +385,10 @@ public class PracticeSessionService {
 
                         double accuracy = 0.0;
 
-                        if (totalQuestions > 0) {
+                        if (answeredQuestions > 0) {
 
                                 accuracy = ((double) correctAnswers /
-                                                totalQuestions) *
+                                                answeredQuestions) *
                                                 100.0;
 
                                 accuracy = Math.round(
@@ -658,10 +658,10 @@ public class PracticeSessionService {
 
                 double accuracy = 0.0;
 
-                if (totalQuestions > 0) {
+                if (answeredQuestions > 0) {
 
                         accuracy = ((double) correctAnswers /
-                                        totalQuestions) *
+                                        answeredQuestions) *
                                         100.0;
 
                         accuracy = Math.round(
