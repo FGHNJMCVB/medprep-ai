@@ -3,7 +3,6 @@ package com.medprep.controller;
 import com.medprep.entity.BatchGenerationJob;
 import com.medprep.service.GeminiBatchService;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/gemini/batch")
-@ConditionalOnProperty(
-        name = "gemini.batch.enabled",
-        havingValue = "true"
-)
 public class GeminiBatchController {
 
     private final GeminiBatchService

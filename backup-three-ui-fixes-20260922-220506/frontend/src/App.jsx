@@ -1527,7 +1527,7 @@ function App() {
   // ==========================================================
 
   async function handleStartMock() {
-    if (!mockConfig?.configId) {
+    if (!mockConfig?.id) {
       setError(
         "Mock test configuration is unavailable."
       );
@@ -1540,7 +1540,7 @@ function App() {
     try {
       const mock =
         await startMockTest(
-          mockConfig.configId
+          mockConfig.id
         );
 
       const expectedTotalQuestions =
@@ -2388,55 +2388,53 @@ function App() {
               </div>
             ) : (
               <>
-                <div className="practice-count-panel">
-                  <div className="practice-count-header">
-                    <div>
-                      <p className="practice-count-eyebrow">
-                        Practice setup
-                      </p>
+                <div
+                  className="empty-card"
+                  style={{
+                    marginBottom: "16px"
+                  }}
+                >
+                  <strong>
+                    Practice settings
+                  </strong>
 
-                      <h3 id="practice-count-heading">
-                        Choose your question count
-                      </h3>
+                  <p>
+                    Choose how many questions you want
+                    in this practice session.
+                  </p>
 
-                      <p className="practice-count-description">
-                        Pick the number of questions for your next topic practice.
-                      </p>
-                    </div>
-
-                    <span
-                      className="practice-count-selected"
-                      aria-live="polite"
-                    >
-                      {practiceQuestionCount} selected
-                    </span>
-                  </div>
-
-                  <fieldset
-                    className="practice-count-options"
-                    aria-labelledby="practice-count-heading"
-                    disabled={loading}
+                  <label
+                    htmlFor="practice-question-count"
                   >
-                    {PRACTICE_QUESTION_COUNTS.map(count => (
-                      <label
-                        key={count}
-                        className="practice-count-choice"
-                      >
-                        <input
-                          type="radio"
-                          name="practice-question-count"
-                          value={count}
-                          checked={practiceQuestionCount === count}
-                          onChange={() => setPracticeQuestionCount(count)}
-                        />
+                    Number of questions
+                  </label>
 
-                        <span className="practice-count-choice-surface">
-                          <strong>{count}</strong>
-                          <small>questions</small>
-                        </span>
-                      </label>
-                    ))}
-                  </fieldset>
+                  <select
+                    id="practice-question-count"
+                    value={practiceQuestionCount}
+                    onChange={event =>
+                      setPracticeQuestionCount(
+                        Number(event.target.value)
+                      )
+                    }
+                    disabled={loading}
+                    style={{
+                      display: "block",
+                      marginTop: "8px",
+                      minWidth: "180px"
+                    }}
+                  >
+                    {PRACTICE_QUESTION_COUNTS.map(
+                      count => (
+                        <option
+                          key={count}
+                          value={count}
+                        >
+                          {count} Questions
+                        </option>
+                      )
+                    )}
+                  </select>
                 </div>
 
                 <div className="topic-list">
@@ -2489,21 +2487,6 @@ function App() {
   // ==========================================================
 
   if (screen === "dashboard") {
-    const recentActivities = [
-      ...practiceHistory.map(item => ({
-        kind: "practice",
-        item
-      })),
-      ...history.map(item => ({
-        kind: "mock",
-        item
-      }))
-    ].sort(
-      (first, second) =>
-        (Date.parse(second.item.completedAt || "") || 0) -
-        (Date.parse(first.item.completedAt || "") || 0)
-    );
-
     return (
       <div className="app-shell">
         <header className="topbar">
@@ -2564,7 +2547,7 @@ function App() {
                   onClick={handleStartMock}
                   disabled={
                     loading ||
-                    !mockConfig?.configId
+                    !mockConfig?.id
                   }
                 >
                   {loading
@@ -2785,7 +2768,7 @@ function App() {
             <div className="section-heading">
               <div>
                 <p className="eyebrow">
-                  PRACTICE & MOCK TESTS
+                  PERFORMANCE
                 </p>
 
                 <h2>
@@ -2794,32 +2777,16 @@ function App() {
               </div>
             </div>
 
-            {recentActivities.length === 0 ? (
+            {practiceHistory.length === 0 ? (
               <div className="empty-card">
-                No completed practice or mock-test sessions yet.
+                No completed practice sessions yet.
               </div>
             ) : (
               <div className="history-list">
-                {recentActivities.map(
-                  activity => {
-                    const item = activity.item;
-                    const isMock = activity.kind === "mock";
-                    const percentage = isMock
-                      ? item.percentage
-                      : item.accuracy;
-                    const incorrectAnswers = isMock
-                      ? item.incorrectAnswers
-                      : item.wrongAnswers;
-
-                    const title = isMock
-                      ? item.type === "SUBJECT_MOCK_TEST"
-                        ? `${item.subjectName || "Subject"} Mock Test #${item.sessionId}`
-                        : `Full FMGE Mock Test #${item.sessionId}`
-                      : `Practice Session #${item.sessionId}`;
-
-                    return (
+                {practiceHistory.map(
+                  item => (
                     <div
-                      key={`${activity.kind}-${item.sessionId}`}
+                      key={item.sessionId}
                       className="history-row"
                       style={{
                         cursor: "default"
@@ -2827,7 +2794,8 @@ function App() {
                     >
                       <div className="history-left">
                         <strong>
-                          {title}
+                          Practice Session #
+                          {item.sessionId}
                         </strong>
 
                         <span>
@@ -2837,12 +2805,9 @@ function App() {
                           {item.correctAnswers ??
                             0}{" "}
                           correct ·{" "}
-                          {incorrectAnswers ??
+                          {item.wrongAnswers ??
                             0}{" "}
-                          incorrect ·{" "}
-                          {item.unansweredQuestions ??
-                            0}{" "}
-                          unanswered
+                          wrong
                         </span>
 
                         <span>
@@ -2856,7 +2821,7 @@ function App() {
 
                       <div className="history-score">
                         <strong>
-                          {percentage ??
+                          {item.accuracy ??
                             0}
                           %
                         </strong>
@@ -2868,20 +2833,84 @@ function App() {
                             marginTop: "8px"
                           }}
                           onClick={() =>
-                            isMock
-                              ? handleViewResult(item.sessionId)
-                              : handleViewPracticeReview(item.sessionId)
+                            handleViewPracticeReview(
+                              item.sessionId
+                            )
                           }
                           disabled={loading}
                         >
-                          {isMock
-                            ? "View Result"
-                            : "Review Answers"}
+                          Review Answers
                         </button>
                       </div>
                     </div>
-                    );
-                  }
+                  )
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="history-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">
+                  PERFORMANCE
+                </p>
+
+                <h2>
+                  Recent mock tests
+                </h2>
+              </div>
+            </div>
+
+            {history.length === 0 ? (
+              <div className="empty-card">
+                No completed mock tests yet.
+              </div>
+            ) : (
+              <div className="history-list">
+                {history.map(
+                  item => (
+                    <button
+                      key={
+                        item.sessionId
+                      }
+                      className="history-row"
+                      onClick={() =>
+                        handleViewResult(
+                          item.sessionId
+                        )
+                      }
+                    >
+                      <div className="history-left">
+                        <strong>
+                          {item.type === "SUBJECT_MOCK_TEST"
+                            ? `${item.subjectName || "Subject"} Mock Test`
+                            : "FMGE Mock Test"}
+                          {" #"}{item.sessionId}
+                        </strong>
+
+                        <span>
+                          {item.completedAt
+                            ? new Date(
+                                item.completedAt
+                              ).toLocaleString()
+                            : "Completed"}
+                        </span>
+                      </div>
+
+                      <div className="history-score">
+                        <strong>
+                          {item.percentage}%
+                        </strong>
+
+                        <span>
+                          {item.passed
+                            ? "Passed"
+                            : "Not passed"}
+                        </span>
+                      </div>
+                    </button>
+                  )
                 )}
               </div>
             )}

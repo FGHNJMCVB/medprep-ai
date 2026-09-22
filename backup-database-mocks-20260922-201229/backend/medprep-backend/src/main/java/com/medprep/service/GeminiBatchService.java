@@ -15,7 +15,6 @@ import com.medprep.entity.BatchGenerationJobStatus;
 import com.medprep.repository.BatchGenerationJobRepository;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -24,10 +23,6 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty(
-        name = "gemini.batch.enabled",
-        havingValue = "true"
-)
 public class GeminiBatchService {
 
     private final BatchGenerationJobRepository
@@ -52,9 +47,8 @@ public class GeminiBatchService {
 
             throw new IllegalStateException(
                     "Gemini API key is not configured. "
-                            + "Set GEMINI_API_KEY and enable "
-                            + "GEMINI_BATCH_ENABLED before using "
-                            + "the Batch API."
+                            + "Set GEMINI_API_KEY before using "
+                            + "Batch API."
             );
         }
 
