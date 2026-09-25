@@ -28,10 +28,6 @@ public interface QuestionRepository
             QuestionDifficulty difficulty
     );
 
-    List<Question> findByConceptTagStartingWithOrderByConceptTagAsc(
-            String conceptTagPrefix
-    );
-
     List<Question> findByActiveTrue();
 
     long countByDifficultyAndActiveTrue(

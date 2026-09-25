@@ -20,11 +20,6 @@ import java.util.Set;
 @Service
 public class MockTestGenerationService {
 
-    private static final int FIXED_MOCK_SET_QUESTION_COUNT = 300;
-    private static final int FIXED_MOCK_PART_QUESTION_COUNT = 150;
-    private static final String FIXED_MOCK_SET_PREFIX =
-            "FMGE-MOCK-01-";
-
     private final PracticeSessionRepository practiceSessionRepository;
     private final SessionQuestionRepository sessionQuestionRepository;
     private final QuestionRepository questionRepository;
@@ -61,12 +56,6 @@ public class MockTestGenerationService {
             throw new IllegalArgumentException(
                     "Total questions must be greater than zero"
             );
-        }
-
-        if(totalQuestions == FIXED_MOCK_SET_QUESTION_COUNT &&
-                useFixedMockSetWhenAvailable(session)) {
-
-            return;
         }
 
         List<MockTestBlueprintService.GenerationBlock> blueprint =
@@ -162,90 +151,9 @@ public class MockTestGenerationService {
 
         Collections.shuffle(selectedQuestions);
 
-        saveQuestionsForSession(
-                session,
-                selectedQuestions
-        );
-    }
-
-    // ==========================================================
-    // FIXED FMGE MOCK SET 01
-    // ==========================================================
-
-    private boolean useFixedMockSetWhenAvailable(
-            PracticeSession session) {
-
-        List<Question> fixedQuestions =
-                questionRepository
-                        .findByConceptTagStartingWithOrderByConceptTagAsc(
-                                FIXED_MOCK_SET_PREFIX
-                        );
-
-        if(fixedQuestions == null || fixedQuestions.isEmpty()) {
-            return false;
-        }
-
-        if(fixedQuestions.size() != FIXED_MOCK_SET_QUESTION_COUNT) {
-            throw new IllegalStateException(
-                    "FMGE Mock Set 01 is incomplete. Expected "
-                            + FIXED_MOCK_SET_QUESTION_COUNT
-                            + " questions but found "
-                            + fixedQuestions.size()
-            );
-        }
-
-        Set<Long> questionIds = new HashSet<>();
-
-        for(int index = 0; index < fixedQuestions.size(); index++) {
-            Question question = fixedQuestions.get(index);
-
-            if(question == null || question.getId() == null) {
-                throw new IllegalStateException(
-                        "FMGE Mock Set 01 contains an invalid question"
-                );
-            }
-
-            if(!questionIds.add(question.getId())) {
-                throw new IllegalStateException(
-                        "FMGE Mock Set 01 contains a duplicate question"
-                );
-            }
-
-            int part = index < FIXED_MOCK_PART_QUESTION_COUNT ? 1 : 2;
-            int partQuestionNumber =
-                    (index % FIXED_MOCK_PART_QUESTION_COUNT) + 1;
-
-            String expectedTag = String.format(
-                    "FMGE-MOCK-01-P%d-Q%03d",
-                    part,
-                    partQuestionNumber
-            );
-
-            if(!expectedTag.equals(question.getConceptTag())) {
-                throw new IllegalStateException(
-                        "FMGE Mock Set 01 order is invalid. Expected tag "
-                                + expectedTag
-                                + " but found "
-                                + question.getConceptTag()
-                );
-            }
-        }
-
-        saveQuestionsForSession(
-                session,
-                fixedQuestions
-        );
-
-        return true;
-    }
-
-    private void saveQuestionsForSession(
-            PracticeSession session,
-            List<Question> questions) {
-
         int displayOrder = 1;
 
-        for(Question question : questions) {
+        for(Question question : selectedQuestions) {
             sessionQuestionRepository.save(
                     new SessionQuestion(
                             session,
@@ -255,7 +163,7 @@ public class MockTestGenerationService {
             );
         }
 
-        session.setTotalQuestions(questions.size());
+        session.setTotalQuestions(selectedQuestions.size());
         session.setAnsweredQuestions(0);
         session.setCorrectAnswers(0);
 
