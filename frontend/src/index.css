@@ -438,6 +438,22 @@ button {
   flex-wrap: wrap;
 }
 
+.hero-actions .primary-button {
+  border: 1px solid #ffffff;
+  background: #ffffff;
+  color: #172033;
+}
+
+.hero-actions .primary-button:hover:not(:disabled) {
+  background: #eef1f6;
+}
+
+.hero-actions .primary-button:focus-visible,
+.hero-secondary-button:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
+}
+
 
 .hero-secondary-button {
   min-height: 48px;

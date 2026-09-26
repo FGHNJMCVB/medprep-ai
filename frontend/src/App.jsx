@@ -2088,7 +2088,7 @@ function App() {
 
             <div>
               <h1>
-                MedPrep AI
+                MedPrep DSA
               </h1>
 
               <p>
@@ -2317,7 +2317,7 @@ function App() {
 
             <div>
               <strong>
-                MedPrep AI
+                MedPrep DSA
               </strong>
 
               <span>
@@ -2514,7 +2514,7 @@ function App() {
 
             <div>
               <strong>
-                MedPrep AI
+                MedPrep DSA
               </strong>
 
               <span>
@@ -3309,7 +3309,7 @@ function App() {
             </div>
 
             <strong>
-              MedPrep AI
+              MedPrep DSA
             </strong>
           </div>
 
@@ -3475,7 +3475,7 @@ function App() {
 
             <div>
               <strong>
-                MedPrep AI
+                MedPrep DSA
               </strong>
 
               <span>
@@ -4331,7 +4331,7 @@ function App() {
             </div>
 
             <strong>
-              MedPrep AI
+              MedPrep DSA
             </strong>
           </div>
 

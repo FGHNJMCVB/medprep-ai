@@ -1,8 +1,6 @@
 package com.medprep.service;
 
 import com.medprep.entity.PracticeSession;
-import com.medprep.entity.PracticeSessionStatus;
-import com.medprep.entity.PracticeSessionType;
 import com.medprep.entity.Question;
 import com.medprep.entity.SessionQuestion;
 
@@ -24,8 +22,8 @@ public class MockTestGenerationService {
 
     private static final int FIXED_MOCK_SET_QUESTION_COUNT = 300;
     private static final int FIXED_MOCK_PART_QUESTION_COUNT = 150;
-    private static final List<String> FIXED_MOCK_SET_PREFIXES =
-            List.of("FMGE-MOCK-01-", "FMGE-MOCK-02-");
+    private static final String FIXED_MOCK_SET_PREFIX =
+            "FMGE-MOCK-01-";
 
     private final PracticeSessionRepository practiceSessionRepository;
     private final SessionQuestionRepository sessionQuestionRepository;
@@ -82,16 +80,6 @@ public class MockTestGenerationService {
 
         List<Question> selectedQuestions = new ArrayList<>();
         Set<Long> selectedIds = new HashSet<>();
-
-        // Later full mocks use only questions absent from completed full mocks.
-        if(totalQuestions == FIXED_MOCK_SET_QUESTION_COUNT) {
-            for(PracticeSession previous : completedFullMockSessions(session)) {
-                for(SessionQuestion item : sessionQuestionRepository
-                        .findBySessionIdOrderByDisplayOrderAsc(previous.getId())) {
-                    selectedIds.add(item.getQuestion().getId());
-                }
-            }
-        }
 
         for(MockTestBlueprintService.GenerationBlock block : blueprint) {
             if(block == null || block.getQuestionCount() <= 0) {
@@ -181,114 +169,74 @@ public class MockTestGenerationService {
     }
 
     // ==========================================================
-    // FIXED FMGE MOCK SET ROTATION
+    // FIXED FMGE MOCK SET 01
     // ==========================================================
 
     private boolean useFixedMockSetWhenAvailable(
             PracticeSession session) {
 
-        List<FixedMockSet> availableSets = new ArrayList<>();
+        List<Question> fixedQuestions =
+                questionRepository
+                        .findByConceptTagStartingWithOrderByConceptTagAsc(
+                                FIXED_MOCK_SET_PREFIX
+                        );
 
-        for(String prefix : FIXED_MOCK_SET_PREFIXES) {
-            List<Question> questions = questionRepository
-                    .findByConceptTagStartingWithOrderByConceptTagAsc(prefix);
-
-            if(questions == null || questions.isEmpty()) {
-                continue;
-            }
-
-            validateFixedMockSet(prefix, questions);
-            availableSets.add(new FixedMockSet(prefix, questions));
-        }
-
-        if(availableSets.isEmpty()) {
+        if(fixedQuestions == null || fixedQuestions.isEmpty()) {
             return false;
         }
 
-        Set<String> usedPrefixes = new HashSet<>();
-        for(PracticeSession previous : completedFullMockSessions(session)) {
-            List<SessionQuestion> items = sessionQuestionRepository
-                    .findBySessionIdOrderByDisplayOrderAsc(previous.getId());
-            if(!items.isEmpty()) {
-                String tag = items.get(0).getQuestion().getConceptTag();
-                if(tag != null) {
-                    for(String prefix : FIXED_MOCK_SET_PREFIXES) {
-                        if(tag.startsWith(prefix)) {
-                            usedPrefixes.add(prefix);
-                        }
-                    }
-                }
-            }
-        }
-
-        for(FixedMockSet fixed : availableSets) {
-            if(!usedPrefixes.contains(fixed.prefix())) {
-                saveQuestionsForSession(session, fixed.questions());
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<PracticeSession> completedFullMockSessions(PracticeSession session) {
-        return practiceSessionRepository
-                .findByUserIdOrderByStartedAtDesc(session.getUser().getId())
-                .stream()
-                .filter(previous -> !previous.getId().equals(session.getId()))
-                .filter(previous -> previous.getType() == PracticeSessionType.MOCK_TEST)
-                .filter(previous -> previous.getStatus() == PracticeSessionStatus.COMPLETED)
-                .filter(previous -> previous.getTotalQuestions() != null
-                        && previous.getTotalQuestions() == FIXED_MOCK_SET_QUESTION_COUNT)
-                .toList();
-    }
-
-    private void validateFixedMockSet(
-            String prefix,
-            List<Question> questions) {
-
-        String setNumber = prefix.substring("FMGE-MOCK-".length(), prefix.length() - 1);
-
-        if(questions.size() != FIXED_MOCK_SET_QUESTION_COUNT) {
+        if(fixedQuestions.size() != FIXED_MOCK_SET_QUESTION_COUNT) {
             throw new IllegalStateException(
-                    "FMGE Mock Set " + setNumber + " is incomplete. Expected "
-                            + FIXED_MOCK_SET_QUESTION_COUNT + " questions but found "
-                            + questions.size()
+                    "FMGE Mock Set 01 is incomplete. Expected "
+                            + FIXED_MOCK_SET_QUESTION_COUNT
+                            + " questions but found "
+                            + fixedQuestions.size()
             );
         }
 
         Set<Long> questionIds = new HashSet<>();
 
-        for(int index = 0; index < questions.size(); index++) {
-            Question question = questions.get(index);
+        for(int index = 0; index < fixedQuestions.size(); index++) {
+            Question question = fixedQuestions.get(index);
 
-            if(question == null || question.getId() == null
-                    || !questionIds.add(question.getId())) {
+            if(question == null || question.getId() == null) {
                 throw new IllegalStateException(
-                        "FMGE Mock Set " + setNumber + " contains an invalid or duplicate question"
+                        "FMGE Mock Set 01 contains an invalid question"
+                );
+            }
+
+            if(!questionIds.add(question.getId())) {
+                throw new IllegalStateException(
+                        "FMGE Mock Set 01 contains a duplicate question"
                 );
             }
 
             int part = index < FIXED_MOCK_PART_QUESTION_COUNT ? 1 : 2;
-            int partQuestionNumber = (index % FIXED_MOCK_PART_QUESTION_COUNT) + 1;
+            int partQuestionNumber =
+                    (index % FIXED_MOCK_PART_QUESTION_COUNT) + 1;
+
             String expectedTag = String.format(
-                    "FMGE-MOCK-%s-P%d-Q%03d",
-                    setNumber,
+                    "FMGE-MOCK-01-P%d-Q%03d",
                     part,
                     partQuestionNumber
             );
 
             if(!expectedTag.equals(question.getConceptTag())) {
                 throw new IllegalStateException(
-                        "FMGE Mock Set " + setNumber + " order is invalid. Expected tag "
-                                + expectedTag + " but found " + question.getConceptTag()
+                        "FMGE Mock Set 01 order is invalid. Expected tag "
+                                + expectedTag
+                                + " but found "
+                                + question.getConceptTag()
                 );
             }
         }
-    }
 
-    private record FixedMockSet(
-            String prefix,
-            List<Question> questions) {
+        saveQuestionsForSession(
+                session,
+                fixedQuestions
+        );
+
+        return true;
     }
 
     private void saveQuestionsForSession(
