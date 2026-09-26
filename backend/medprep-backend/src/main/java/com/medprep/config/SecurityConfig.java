@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import org.springframework.core.env.Environment;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.http.HttpMethod;
 
@@ -44,6 +45,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Arrays;
 
 @Configuration
 @EnableMethodSecurity
@@ -176,15 +178,17 @@ public class SecurityConfig {
     // ==========================================================
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins}") String allowedOrigins) {
 
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
         configuration.setAllowedOrigins(
-                List.of(
-                        "http://localhost:5174"
-                )
+                Arrays.stream(allowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList()
         );
 
         configuration.setAllowedMethods(
@@ -213,9 +217,7 @@ public class SecurityConfig {
                 )
         );
 
-        configuration.setAllowCredentials(
-                true
-        );
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
@@ -235,7 +237,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtRoleConverter jwtRoleConverter)
+            JwtRoleConverter jwtRoleConverter,
+            CorsConfigurationSource corsConfigurationSource)
             throws Exception {
 
         http
@@ -244,7 +247,7 @@ public class SecurityConfig {
                 // ------------------------------------------------
                 .cors(cors ->
                         cors.configurationSource(
-                                corsConfigurationSource()
+                                corsConfigurationSource
                         )
                 )
 
@@ -284,6 +287,11 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/auth/**"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/health"
                         ).permitAll()
 
                         .requestMatchers(
